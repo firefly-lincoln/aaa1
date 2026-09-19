@@ -19,13 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-NOTE: this license covers `dsh-restart-plugin` and `dsh-peak-valley-plugin`.
-
-`dsh-whale-pet-plugin/` is a modified redistribution of a third-party work and
-is NOT covered by the copyright above; its own upstream MIT license and
-copyright notice are preserved verbatim in `dsh-whale-pet-plugin/LICENSE`.
-See `dsh-whale-pet-plugin/FORK-NOTICE.md` for provenance and the exact list of
-local modifications.
