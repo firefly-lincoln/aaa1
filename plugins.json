@@ -1,0 +1,31 @@
+{
+  "name": "dsh-plugin-collection",
+  "generatedAt": "2026-09-20T13:02:58.250Z",
+  "dshVersion": "0.1.5-rc.2",
+  "plugins": [
+    {
+      "name": "dsh-restart-plugin",
+      "dst": "plugins/dsh-restart-plugin",
+      "files": 8,
+      "kb": "30.8"
+    },
+    {
+      "name": "dsh-peak-valley-plugin",
+      "dst": "plugins/dsh-peak-valley-plugin",
+      "files": 4,
+      "kb": "46.2"
+    },
+    {
+      "name": "dsh-whale-pet-plugin",
+      "dst": "plugins/dsh-whale-pet-plugin-patched",
+      "files": 65,
+      "kb": "6198.1"
+    },
+    {
+      "name": "dsh-webguard",
+      "dst": "plugins/dsh-webguard",
+      "files": 2,
+      "kb": "4.5"
+    }
+  ]
+}
