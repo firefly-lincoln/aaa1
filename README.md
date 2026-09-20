@@ -165,6 +165,49 @@ dsh-whale-pet-plugin/
 
 ---
 
+## 🛠 维护这个仓库
+
+**插件代码的唯一源头是 `node_modules`**，仓库里的 `plugins/` 是它的产物。
+
+### 改了插件代码之后
+
+```powershell
+# 1. 从 node_modules 重新构建产物（会保留 .git 与手写文档）
+node "D:\新建文件夹\ai_text\build-repo.mjs"
+
+# 2. 提交并推送
+cd "D:\新建文件夹\ai_text\dsh-plugins-repo"
+git add -A
+git commit -m "更新：<改了什么>"
+git push
+```
+
+`build-repo.mjs` 的设计要点：
+
+| 行为 | 说明 |
+|---|---|
+| **保留 `.git`** | 不破坏 git 工作副本，构建后可直接提交 |
+| **保留「包中独有」文件** | 仓库里手写、`node_modules` 里没有的文件（如本 README、`FORK-NOTICE.md`）不会被覆盖 |
+| **构建后自检** | 逐字节比对产物与 `node_modules`，不一致就报错 |
+| **可复现** | `plugins.json` 不含时间戳，连续两次构建结果稳定 |
+
+> ⚠️ **不要在仓库里直接改插件代码**——下次构建会被 `node_modules` 覆盖。
+> 要改就改 `node_modules` 里的版本，然后重新构建。
+
+### 桌宠修复的源文件位置
+
+```
+C:\Users\10766\.dsh\profiles\web\node_modules\dsh-whale-pet-plugin\
+```
+
+8 项修复的实际存放处。**重装 DSH 或 `pnpm update` 会覆盖它**——真丢了就用本仓库恢复：
+
+```powershell
+node install.mjs --only whale-pet
+```
+
+---
+
 ## 环境与版本
 
 | 项 | 值 |
