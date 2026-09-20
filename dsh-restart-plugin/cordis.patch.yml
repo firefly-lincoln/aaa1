@@ -1,5 +1,0 @@
-# This bundle's patch layer: insert the restart row into the host tree.
-# The dsh.client declaration in package.json contributes the browser half.
-- insert:
-    - id: dsh-restart
-      name: dsh-restart-plugin
