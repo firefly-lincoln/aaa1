@@ -1,22 +1,29 @@
-# 依赖与构建产物
+# ── 依赖与构建产物 ──
 node_modules/
 dist/
 *.tgz
+package-lock.json
+pnpm-lock.yaml
 *.log
 
-# 运行时数据（插件自己的缓存/状态，不应该进仓库）
+# ── 运行时数据（插件自己的缓存/状态，不应该进仓库）──
 .whale-pet/
+*.whale-*.json
 .dsh-peak-valley.json
 dsh-restart.log
 
-# 编辑器 / 系统
+# ── 编辑器 / 系统 ──
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
 desktop.ini
+*.bak
+*.bak-*
 
-# 凭证（千万别提交）
+# ── 凭证（千万别提交）──
 .env
+.dsh/
+.credentials.yaml
 *.pem
 credentials.json
