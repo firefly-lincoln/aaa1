@@ -1,4 +1,4 @@
-# DSH 插件集合（含桌宠修复版）
+﻿# DSH 插件集合（含桌宠修复版）
 
 给 [DeepSeek Harness (DSH)](https://deepseek-harness.github.io/deepseek-harness/guide/quickstart) 用的插件集合，附带一份经过实测修复的**鲸鱼娘桌宠**修改版。
 
@@ -30,7 +30,7 @@
 
 ### 3. `plugins/dsh-whale-pet-plugin-patched` — 鲸鱼娘桌宠（修复版）
 
-第三方插件 [dleaf6211-hash/dsh-whale-pet](https://github.com/dleaf6211-hash/dsh-whale-pet)（MIT）的本地修改版，含 **8 项修复**：新增浏览器桌宠开关、计费口径修正（虚高 4×）、周末误判高峰、任务通知漏算缓存写、「自动拉起」永久失效、桌宠秒退、「本月消耗」陈账、以及账本自愈。
+第三方插件 [dleaf6211-hash/dsh-whale-pet](https://github.com/dleaf6211-hash/dsh-whale-pet)（MIT）的本地修改版，含 **9 项修复**：新增浏览器桌宠开关、计费口径修正（虚高 4×）、周末误判高峰、任务通知漏算缓存写、「自动拉起」永久失效、桌宠秒退、「本月消耗」陈账、账本自愈、以及**置顶失效**（浏览器操作后掉到窗口下面）。
 
 - 完整说明与实测证据：[`PATCH-NOTES.md`](plugins/dsh-whale-pet-plugin-patched/PATCH-NOTES.md)
 - 来源与授权说明：[`FORK-NOTICE.md`](plugins/dsh-whale-pet-plugin-patched/FORK-NOTICE.md)
@@ -151,7 +151,7 @@ node install.mjs --only whale-pet    # 只装桌宠修复版
 |---|---|---|
 | `dsh-restart-plugin/` | 与 `plugins/` 下**内容相同**，纯重复 | **删除** |
 | `dsh-peak-valley-plugin/` | 代码与 `plugins/` 下**同源**；其 README 已收进 `plugins/dsh-peak-valley-plugin/README-UPSTREAM.md` | **删除** |
-| `dsh-whale-pet-plugin/` | ⚠️ **过时且未修复**（`lib/index.js` 91,702 B，只含第 1 项改动） | **务必删除**，改用 `plugins/dsh-whale-pet-plugin-patched/`（97,747 B，含全部 8 项修复） |
+| `dsh-whale-pet-plugin/` | ⚠️ **过时且未修复**（`lib/index.js` 91,702 B，只含第 1 项改动） | **务必删除**，改用 `plugins/dsh-whale-pet-plugin-patched/`（含全部 9 项修复） |
 
 **为什么必须删掉根目录的桌宠**：它是本会话早期的半成品快照，只加了「浏览器桌宠开关」，**计费修复、账本自愈、自动拉起修复全都没有**。照它安装会得到一个"半修"版本，反而更难排查。
 
@@ -200,7 +200,7 @@ git push
 C:\Users\10766\.dsh\profiles\web\node_modules\dsh-whale-pet-plugin\
 ```
 
-8 项修复的实际存放处。**重装 DSH 或 `pnpm update` 会覆盖它**——真丢了就用本仓库恢复：
+9 项修复的实际存放处。**重装 DSH 或 `pnpm update` 会覆盖它**——真丢了就用本仓库恢复：
 
 ```powershell
 node install.mjs --only whale-pet

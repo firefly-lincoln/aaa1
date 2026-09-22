@@ -27,6 +27,7 @@ client/client.js    浏览器侧（前端）
 | 6 | 桌宠启动后秒退 | `detached: true` | 移除该参数 |
 | 7 | 本月消耗虚高约 4× | 历史金额是旧价「陈账」 | 启动自校验重算 |
 | 8 | 修复 7 导致月度算成 ¥0 | 恢复顺序颠倒 | 调整启动顺序 |
+| 9 | 浏览器操作后桌宠**掉到窗口下面** | `Topmost` 只请求一次，后被置顶的窗口会插到更上层 | `SetWindowPos(HWND_TOPMOST)` 每秒重申 |
 
 ---
 
@@ -249,6 +250,59 @@ restoreMonthlyUsage()
 | **与真实余额对照** | ✅ 插件记「今日段」¥2.94 == 实际下降 ¥2.94（39.39 → 36.45） |
 
 > **精度说明**：重算按**当前时段价格**估算历史会话，所以是近似值。高峰/空闲是**逐请求**累加的，历史记录只留 token 总量，信息不足以精确还原。金额会落在「全空闲 ~ 全高峰」区间内，量级正确。
+
+---
+
+## 9. 桌宠被压在其它窗口下面（置顶失效）
+
+**现象**：在浏览器里操作一段时间后（切标签、全屏、弹窗），桌宠掉到窗口下层，必须回到桌面点一下才重新浮到最上面。
+
+**根因**：WPF 的 `Topmost = $true` 只是**一次性请求**。实测发现 `WS_EX_TOPMOST`（`0x8`）扩展样式其实**从一开始就在**——问题不在标志丢失，而在于：
+
+> **置顶窗口之间存在层级顺序。** 任何后来置顶的窗口（浏览器全屏、模态弹窗等）会插入到更上层，把桌宠压下去。而原脚本设完 `Topmost` 后再无任何保障。
+
+原脚本只有一个 2 秒的 UI 刷新计时器和 150ms 的眼睛悬停计时器，**没有任何"保持置顶"的逻辑**。
+
+**改动**——四处（均在 `buildPetScript` 的模板里）：
+
+| 位置 | 改动 |
+|---|---|
+| P/Invoke 声明 | 增加 `SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags)` |
+| 新增函数 | `Set-Topmost`：补 `WS_EX_TOPMOST` 样式 + `SetWindowPos(HWND_TOPMOST, SWP_NOACTIVATE\|SWP_NOMOVE\|SWP_NOSIZE)` |
+| 新增计时器 | `$topmostTimer`，**每 1 秒**重申一次 |
+| 关闭清理 | `$win.Add_Closed` 里 `$topmostTimer.Stop()` |
+
+```powershell
+function Set-Topmost {
+  if ($script:hwnd -eq $null) { return }
+  try {
+    $ex = [W]::GetWindowLong($script:hwnd, -20)
+    if (($ex -band 0x8) -eq 0) { [void][W]::SetWindowLong($script:hwnd, -20, $ex -bor 0x8) }
+    # HWND_TOPMOST=-1, SWP_NOSIZE=1|SWP_NOMOVE=2|SWP_NOACTIVATE=0x10
+    [void][W]::SetWindowPos($script:hwnd, [IntPtr]::new(-1), 0, 0, 0, 0, 0x13)
+  } catch { }
+}
+```
+
+**⚠️ `SWP_NOACTIVATE` 不能省**：重申置顶时若把焦点抢过来，用户每次输入都会被桌宠打断——那比被遮挡更糟。
+
+**运行时实测**（真实窗口 + 真实 P/Invoke）：
+
+```
+Add-Type OK
+SetWindowPos returned True          ← 签名正确
+连续 5 次调用 failures=0            ← 幂等，可循环调用
+0x13 含 SWP_NOACTIVATE(0x10)? True   ← 不抢焦点
+0x13 含 NOMOVE+NOSIZE? True          ← 不动位置与大小
+```
+
+**验证修复在位**：
+
+```powershell
+Select-String -Path "$env:USERPROFILE\.whale-pet\run\whale-pet.ps1" -Pattern 'Set-Topmost'
+```
+
+生成的脚本从 34,714 B 增至 **35,907 B**；出现 `Set-Topmost` / `topmostTimer` / `SetWindowPos` / `0x13` 即为已生效。
 
 ---
 

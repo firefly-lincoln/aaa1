@@ -129,7 +129,7 @@ for ($i = 0; $i -lt 10; $i++) {
 }
 if (-not $gotMutex) { exit }
 Add-Type -AssemblyName PresentationFramework
-Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public static class W { [StructLayout(LayoutKind.Sequential)] public struct PT { public int X; public int Y; } [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr h, int i); [DllImport("user32.dll")] public static extern int SetWindowLong(IntPtr h, int i, int v); [DllImport("user32.dll")] public static extern bool GetCursorPos(out PT p); }'
+Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public static class W { [StructLayout(LayoutKind.Sequential)] public struct PT { public int X; public int Y; } [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr h, int i); [DllImport("user32.dll")] public static extern int SetWindowLong(IntPtr h, int i, int v); [DllImport("user32.dll")] public static extern bool GetCursorPos(out PT p); [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags); }'
 $statePath = "${st}"
 $cmdPath = "${cm}"
 $speechWav = "${sw}"
@@ -236,6 +236,19 @@ function Set-ClickThrough($on) {
   if ($on) { $ex = $ex -bor 0x20 } else { $ex = $ex -band (-bnot 0x20) }
   [void][W]::SetWindowLong($script:hwnd, -20, $ex)
 }
+# 重申置顶:WPF 的 Topmost=$true 只是"请求一次",不会写入 WS_EX_TOPMOST 扩展样式,
+# 任何后来置顶的窗口(浏览器全屏、弹窗等)都能插到上面 —— 表现为桌宠被压在下面。
+# 用 SetWindowPos(HWND_TOPMOST) 周期性把窗口重新提到最顶层。
+# SWP_NOACTIVATE 是关键:重申置顶时不抢焦点,否则会打断用户正在进行的输入。
+function Set-Topmost {
+  if ($script:hwnd -eq $null) { return }
+  try {
+    $ex = [W]::GetWindowLong($script:hwnd, -20)
+    if (($ex -band 0x8) -eq 0) { [void][W]::SetWindowLong($script:hwnd, -20, $ex -bor 0x8) }
+    # HWND_TOPMOST=-1, SWP_NOSIZE=1|SWP_NOMOVE=2|SWP_NOACTIVATE=0x10
+    [void][W]::SetWindowPos($script:hwnd, [IntPtr]::new(-1), 0, 0, 0, 0, 0x13)
+  } catch { }
+}
 function Update-GhostState {
   $win.Opacity = if ($script:ghost) { 0.45 } else { 1.0 }
   foreach ($b in $btns.Children) { if ($b -is [System.Windows.Controls.Button]) { $b.IsEnabled = -not $script:ghost } }
@@ -336,6 +349,11 @@ $hoverTimer = New-Object Windows.Threading.DispatcherTimer
 $hoverTimer.Interval = [TimeSpan]::FromMilliseconds(150)
 $hoverTimer.Add_Tick({ Update-EyeHover })
 $hoverTimer.Start()
+# 置顶保全计时器:1000ms 重申一次 TOPMOST,防止被后续置顶的窗口压下去
+$topmostTimer = New-Object Windows.Threading.DispatcherTimer
+$topmostTimer.Interval = [TimeSpan]::FromSeconds(1)
+$topmostTimer.Add_Tick({ Set-Topmost })
+$topmostTimer.Start()
 $win.Add_MouseLeftButtonDown({ Start-Drag })
 $win.Add_MouseMove({ Do-Drag })
 $win.Add_MouseLeftButtonUp({ End-Drag })
@@ -343,6 +361,7 @@ $win.Add_Loaded({ $script:hwnd = (New-Object System.Windows.Interop.WindowIntero
 $win.Add_Closed({
   $uiTimer.Stop()
   $hoverTimer.Stop()
+  $topmostTimer.Stop()
   Set-ClickThrough $false
   $mutex.ReleaseMutex()
 })
