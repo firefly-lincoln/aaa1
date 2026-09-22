@@ -194,6 +194,32 @@ if (restored.length > 0) {
   console.log('   提示: 上面恢复的文件只存在于仓库里，不在 node_modules。')
   console.log('         如果你希望它们由构建生成，请把它们也放进 node_modules 对应插件目录。')
 }
+
+// ── 非构建产物目录检查 ──
+// 本脚本只认识从 node_modules 复制的常驻插件。仓库里还可能有【不由本脚本生成】的东西
+// （例如 dsh-context-budget 这种动态 Cordis 插件目录）。它们靠"保留包中独有文件"存活，
+// 但必须显式确认，否则将来改了这个逻辑会静默删掉它们。
+const KNOWN_DIRS = new Set(PLUGINS.map(([, dst]) => dst.replace(/^plugins\//, '')))
+const pluginsRoot = join(OUT, 'plugins')
+const extraDirs = existsSync(pluginsRoot)
+  ? readdirSync(pluginsRoot, { withFileTypes: true }).filter((e) => e.isDirectory() && !KNOWN_DIRS.has(e.name)).map((e) => e.name)
+  : []
+if (extraDirs.length > 0) {
+  console.log('')
+  console.log('   非构建产物目录（由本脚本之外的来源维护，已保留）:')
+  for (const d of extraDirs) {
+    const n = walkRel(join(pluginsRoot, d)).length
+    console.log('      · plugins/' + d + '  (' + n + ' 文件)')
+  }
+  console.log('      ⚠️ 这些目录不会被本脚本更新；改动它们请直接编辑并提交。')
+}
+
+// ── 回退指引：删掉的 README/INSTALL 等可从 git 取回 ──
+if (gitRestored) {
+  console.log('')
+  console.log('   若发现 README.md / INSTALL.md / LICENSE 等被回退成旧版（本脚本会从暂存恢复它们），')
+  console.log('   用 git 取回最新版即可:  git checkout -- README.md INSTALL.md LICENSE')
+}
 if (bad > 0) {
   console.log('')
   console.log('   ⚠️ 有 ' + bad + ' 个插件内容与 node_modules 不一致，请检查上面的输出')
