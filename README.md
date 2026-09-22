@@ -143,15 +143,26 @@ node install.mjs --only whale-pet    # 只装桌宠修复版
 ├── README.md                 ← 你在这里
 ├── INSTALL.md                ← 安装脚本说明
 ├── install.mjs               ← 安装 / 校验 / 更新工具
+├── build-repo.mjs            ← 从 node_modules 重建产物（维护用）
 ├── LICENSE                   ← MIT + 第三方组件声明
-├── plugins.json              ← 生成的清单
+├── plugins.json              ← 生成的清单（只登记常驻插件）
+├── docs/                     ← 交接文档（见 docs/README.md）
+│   ├── README.md                       文档索引与同步方式
+│   ├── HANDOVER.md                     ⭐ 接手前先读这份
+│   ├── HANDOVER-game-prototype.md      同工作区的游戏原型
+│   └── HOWTO-read-session-usage.md     读会话用量的工具文档
 ├── plugins/
-│   ├── dsh-restart-plugin/
-│   ├── dsh-peak-valley-plugin/          + README-UPSTREAM.md（原说明）
-│   ├── dsh-whale-pet-plugin-patched/    + PATCH-NOTES.md / FORK-NOTICE.md
-│   └── dsh-webguard/
+│   ├── dsh-restart-plugin/              常驻包
+│   ├── dsh-peak-valley-plugin/          常驻包   + README-UPSTREAM.md（原说明）
+│   ├── dsh-whale-pet-plugin-patched/    常驻包   + PATCH-NOTES.md / FORK-NOTICE.md
+│   ├── dsh-webguard/                    常驻包（默认不装）
+│   └── dsh-context-budget/              ⚠️ 动态 Cordis 插件，装法完全不同
 └── patches/whale-pet/        ← 桌宠两个成品文件，可直接覆盖
 ```
+
+> **`plugins/dsh-context-budget` 与其它四个不是一类东西** —— 它不是 `node_modules` 里的常驻包，
+> `install.mjs` 不处理它，也**不要**登记进 `plugins.json`。重启 DSH 后会消失，需重新
+> `cordis_define` + `cordis_run`。详见其 [README](plugins/dsh-context-budget/README.md)。
 
 ---
 
