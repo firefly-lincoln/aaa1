@@ -1,0 +1,20 @@
+{
+  "name": "dsh-context-budget",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DSH dynamic Cordis plugin: real-time per-conversation context-window monitoring, auto-written lessons-learned documents, and a 100% alert. Reads the in-process contextPressure projection -- zero model tokens, zero memory growth.",
+  "type": "module",
+  "dsh": {
+    "kind": "dynamic-cordis-plugin",
+    "install": "manual",
+    "installSteps": [
+      "用 cordis_define 填入 cordis-define.json 里的 code.host / code.client（kind 用 new）",
+      "用返回的 pluginId / packageId 调 cordis_run，mode=run，并在界面上批准客户端半",
+      "成功标志：工作区根目录出现 上下文经验教训-<会话短id>.md"
+    ],
+    "notAProfilePackage": "这不是 ~/.dsh/profiles/web/node_modules 下的常驻插件包，仓库根目录的 install.mjs 不处理它（也不要在 plugins.json 里登记它）。"
+  },
+  "scripts": {
+    "check": "node check.mjs"
+  }
+}
