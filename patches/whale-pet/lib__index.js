@@ -236,9 +236,11 @@ function Set-ClickThrough($on) {
   if ($on) { $ex = $ex -bor 0x20 } else { $ex = $ex -band (-bnot 0x20) }
   [void][W]::SetWindowLong($script:hwnd, -20, $ex)
 }
-# 重申置顶:WPF 的 Topmost=$true 只是"请求一次",不会写入 WS_EX_TOPMOST 扩展样式,
-# 任何后来置顶的窗口(浏览器全屏、弹窗等)都能插到上面 —— 表现为桌宠被压在下面。
-# 用 SetWindowPos(HWND_TOPMOST) 周期性把窗口重新提到最顶层。
+# 重申置顶:WPF 的 Topmost=$true 只是"在设置时置顶一次",不会持续维持。
+# 实测(2026-09-21)窗口的 WS_EX_TOPMOST(0x8) 标志一开始就在(exStyle=0x80108),
+# 所以问题不在标志丢失,而在于【置顶窗口之间存在层级顺序】——
+# 任何后来置顶的窗口(浏览器全屏、弹窗等)都会插入到更上层,把桌宠压下去。
+# 用 SetWindowPos(HWND_TOPMOST) 周期性把窗口重新提到置顶层最前面。
 # SWP_NOACTIVATE 是关键:重申置顶时不抢焦点,否则会打断用户正在进行的输入。
 function Set-Topmost {
   if ($script:hwnd -eq $null) { return }

@@ -18,7 +18,7 @@
       "name": "dsh-whale-pet-plugin",
       "dst": "plugins/dsh-whale-pet-plugin-patched",
       "files": 67,
-      "kb": "6216.0"
+      "kb": "6216.3"
     },
     {
       "name": "dsh-webguard",
