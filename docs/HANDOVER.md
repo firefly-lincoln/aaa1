@@ -1,4 +1,4 @@
-# 交接说明 —— 致后续所有新对话的 AI
+﻿# 交接说明 —— 致后续所有新对话的 AI
 
 > **初版 2026-09-20 23:10,2026-09-22 修订**,替代并作废此前的同名文档(已归档到 `_archive\`)。
 > 本文档**完全自包含**,读者无需任何前置上下文,请**完整读完再动手**。
@@ -156,8 +156,9 @@ Copy-Item "$env:LOCALAPPDATA\npm-cache\_npx\<hash>\node_modules\@vscode\ripgrep-
 ## 二·补、DSH 版本升级注意事项
 
 **本机当前：`0.1.7-rc.2`**（2026-09-24 发布；此前是 `0.1.5-rc.2`）。
-包内**没有** CHANGELOG 文件——要看变更得去 GitHub Release notes，或跑
-`_archive/tools/fetch-dsh-changelog.mjs`（经代理取，含按版本切分）。
+包内**没有** CHANGELOG 文件——要看变更得去 GitHub Release notes。
+抓取脚本：仓库 `docs/tools/fetch-dsh-changelog.mjs`（工作区副本 `_archive\tools\`）。
+它经代理取官方 release，并按版本切分、标出破坏性条目。
 
 npm 版本线（截至本更新）：`latest = 0.1.7-rc.2` · `next = 0.2.0-rc.1` · `alpha = 0.1.7-alpha.2`
 
