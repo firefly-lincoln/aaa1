@@ -8,7 +8,7 @@
 
 ## 📦 插件一览
 
-五个目录，各自独立。**前四个是常驻插件包**（用 `install.mjs` 安装，装在 `plugins/` 下）；**第五个是动态 Cordis 插件**，装法完全不同（用 `cordis_define` 贴入当前会话），详见其 README。
+五个目录，各自独立。**前四个是常驻插件包**（用 `install.mjs` 安装）；**第五个 `dsh-context-budget` 目录里同时有动态版源码与常驻版产物** —— 要装的是它的 `permanent/` 子目录，详见其 README。
 
 ### 1. `plugins/dsh-restart-plugin` — 一键重启 DSH
 
@@ -45,16 +45,41 @@
 node install.mjs --only webguard
 ```
 
-### 5. `plugins/dsh-context-budget` — 上下文预算监控（**动态 Cordis 插件，装法不同**）
+### 5. `plugins/dsh-context-budget` — 上下文预算监控（**目录里有动态版与常驻版两份**）
 
 实时显示**每个对话自己**的上下文占用（与界面上的上下文仪表**同源**），跨 20% / 40% / 60% / 80% / 100% 自动把工作区根目录的 `上下文经验教训-<会话短id>.md` 整份重写，到 100% 弹窗告警，并通过 `agent/pre-step` 把告警**注入该会话模型下一步的输入**。
 
 - **零模型调用、零工具注册、零提示词开销**；单次测量实测 1 ms，只保留几十个标量状态。
-- **它与前四个不是一类东西**：不是 `node_modules` 里的常驻包，`install.mjs` 不处理它，**也不要在 `plugins.json` 里登记它**。重启 DSH 后会消失，需要重新 `cordis_define` + `cordis_run`。
 
-完整说明、安装三步、以及**四个实测踩出来的坑**（批准路径下 `currentInitiator()` 不可用 / 显示作用域 ≠ 归属作用域 / 运行卡片也会从别的对话上报 / 归属必须可核实）：
+#### ⚠️ 它有两份，别装错
+
+| 路径 | 是什么 | 怎么用 |
+|---|---|---|
+| `lib/host.js` + `lib/client.js` + `cordis-define.json` | **动态版源码** | 留作源；`permanent/build.mjs` 从它生成常驻版 |
+| **`permanent/`** | **常驻版产物** | 装进 `node_modules`，重启 DSH 后自动加载 |
+
+**为什么必须迁移**：`0.1.7-rc.1` 起**创造模式移除了 `cordis_define` / `cordis_run` 工具** —— 动态插件在新版**根本无法安装**；且动态定义只在进程内存里，重启必失。唯一可用形态是常驻插件包。
+
+常驻版已装进 profile 并在运行：
+
+```
+cordis.patch.yml →  - insert: id: context-budget   name: dsh-context-budget-plugin
+node_modules/dsh-context-budget-plugin/    （package.json / lib/index.js / lib/core.js / client/client.js）
+```
+
+重新生成常驻版：
+
+```powershell
+node plugins/dsh-context-budget/permanent/build.mjs
+```
+
+> `permanent/lib/core.js` 与动态版 `lib/host.js` **内容本就不同**（迁移时改了两处外壳适配），
+> 别拿哈希不一致当"文件坏了"。`build.mjs` 用精确替换 + 命中数断言打补丁，不命中即构建失败。
+
+完整说明、四个实测踩出来的坑（批准路径下 `currentInitiator()` 不可用 / 显示作用域 ≠ 归属作用域 / 运行卡片也会从别的对话上报 / 归属必须可核实）：
 
 → [`plugins/dsh-context-budget/README.md`](plugins/dsh-context-budget/README.md)
+→ 常驻版怎么生成、改了什么、验证证据：[`permanent/README.md`](plugins/dsh-context-budget/permanent/README.md)
 → 版本史与被推翻的假设：[`CHANGELOG.md`](plugins/dsh-context-budget/CHANGELOG.md)
 
 ---
@@ -156,13 +181,16 @@ node install.mjs --only whale-pet    # 只装桌宠修复版
 │   ├── dsh-peak-valley-plugin/          常驻包   + README-UPSTREAM.md（原说明）
 │   ├── dsh-whale-pet-plugin-patched/    常驻包   + PATCH-NOTES.md / FORK-NOTICE.md
 │   ├── dsh-webguard/                    常驻包（默认不装）
-│   └── dsh-context-budget/              ⚠️ 动态 Cordis 插件，装法完全不同
+│   └── dsh-context-budget/              ⚠️ 目录内含两份：
+│       ├── lib/ + cordis-define.json        动态版源码（留作源）
+│       └── permanent/                       ⭐ 常驻版产物（要装的是这个）
 └── patches/whale-pet/        ← 桌宠两个成品文件，可直接覆盖
 ```
 
-> **`plugins/dsh-context-budget` 与其它四个不是一类东西** —— 它不是 `node_modules` 里的常驻包，
-> `install.mjs` 不处理它，也**不要**登记进 `plugins.json`。重启 DSH 后会消失，需重新
-> `cordis_define` + `cordis_run`。详见其 [README](plugins/dsh-context-budget/README.md)。
+> **`plugins/dsh-context-budget/permanent/`** 才是可安装的形态：把它复制到
+> `~/.dsh/profiles/web/node_modules/dsh-context-budget-plugin`，并在 `cordis.patch.yml` 加一行 insert。
+> 目录里的动态版源码**只作为生成源保留** —— `0.1.7-rc.1` 起 `cordis_define` / `cordis_run` 已被移除，
+> 动态形态在新版装不了。详见 [`permanent/README.md`](plugins/dsh-context-budget/permanent/README.md)。
 
 ---
 

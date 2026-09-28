@@ -4,19 +4,21 @@
 > 本文档**完全自包含**,读者无需任何前置上下文,请**完整读完再动手**。
 > 本次修订:新增 5 个插件目录（含动态插件 `dsh-context-budget`）、桌宠第 9 项修复、错误 7/8、代理与多 AI 协作提醒。
 
-> ### 🔀 2026-09-22 补充:现在有**三份**交接文档,都要读
+> ### 🔀 2026-09-25 更新：交接文档的分工
 >
-> | 文档 | 讲什么 |
-> |---|---|
-> | **本文档** | DSH **插件仓库**(桌宠 / 峰谷插件 / 上下文预算 / webguard 事故史) |
-> | **`交接说明-游戏原型.md`** | `prototype\` 里的**城市应急指挥游戏**(93 轮开发) |
-> | **`读取DSH上下文用量-方法.md`** | 怎么读会话的 token 用量(工具文档) |
+> | 文档 | 讲什么 | 状态 |
+> |---|---|---|
+> | **`交接文档-给下一个会话.md`** | **游戏项目的当前入口**：定调、运行时事实、系统契约、坑、待办、协作注意点 | 🟢 **做游戏先读它** |
+> | **本文档** | DSH **插件仓库**（桌宠 / 峰谷插件 / 上下文预算 / webguard 事故史） | 🟢 仍然有效 |
+> | `交接说明-游戏原型.md` | 游戏原型（写于 09-22，93 轮开发期） | 🟡 **大部分已过期**，只剩「我犯过的错」一节还有效 |
+> | `读取DSH上下文用量-方法.md` | 怎么读会话 token 用量（工具文档） | 🟢 仍然有效 |
 >
-> **本文档第一节「铁律」对三份都适用** —— 尤其:
+> **本文档第一节「铁律」对以上都适用** —— 尤其：
 > 改插件必须重启 DSH、绝不改运行中的 npx 包、热加载会杀死 DSH。
 >
-> **如果用户让你做游戏相关的事** → 读 `交接说明-游戏原型.md`,
-> 那份记录了游戏开发中反复犯的 9 类错误(核心是「先插桩,别猜」)。
+> **如果用户让你做游戏相关的事** → 先读 `交接文档-给下一个会话.md`。
+> 它在 §6 收了 16 条已踩过的坑（包括"用 PowerShell 在文件末尾插代码会插错位置"
+> 这类会静默搞坏主循环的），能省掉一整轮返工。
 >
 > **关于 `dsh-context-budget`（上下文预算监控）** → 见本文档第四节「项目地图」，
 > 它是**动态 Cordis 插件**，与其它四个常驻包的装法完全不同，重启 DSH 后会消失。
@@ -99,7 +101,6 @@ node -e "JSON.parse(require('fs').readFileSync(p,'utf8'))"   # 最可靠
 ---
 
 ## 二、环境硬事实(2026-09-20 实测)
-
 | 项 | 值 |
 |---|---|
 | DSH 版本 | `@deepseek-ai/dsh@0.1.5-rc.2`(npm 包,**无 .git**) |
@@ -149,6 +150,58 @@ Copy-Item "$env:LOCALAPPDATA\npm-cache\_npx\<hash>\node_modules\@vscode\ripgrep-
           "$env:LOCALAPPDATA\npm-cache\_npx\<hash>\node_modules\@vscode\ripgrep\bin\rg.exe"
 ```
 **`powershell.exe` 从来没问题**——不要因此让用户跑 DISM/SFC。
+
+---
+
+## 二·补、DSH 版本升级注意事项
+
+**本机当前：`0.1.7-rc.2`**（2026-09-24 发布；此前是 `0.1.5-rc.2`）。
+包内**没有** CHANGELOG 文件——要看变更得去 GitHub Release notes，或跑
+`_archive/tools/fetch-dsh-changelog.mjs`（经代理取，含按版本切分）。
+
+npm 版本线（截至本更新）：`latest = 0.1.7-rc.2` · `next = 0.2.0-rc.1` · `alpha = 0.1.7-alpha.2`
+
+### ⚠️ 影响本项目的破坏性变更（全部来自 0.1.7-rc.1）
+
+| 变更 | 对本项目的影响 | 现状 |
+|---|---|---|
+| **创造模式移除 `cordis_define` / `cordis_run`**，改为通过 Plugin Manager 安装持久化插件 | **动态 Cordis 插件在新版彻底装不了** | `dsh-context-budget` 已迁移为常驻包 `dsh-context-budget-plugin` |
+| `agent/session-start` → **异步串行的 `agent/created`** | 注册旧事件名的插件会失效 | ✅ 全部插件无旧名引用 |
+| 工作区文件读取统一为 **`readBytes`** | 用旧接口的插件需迁移 | ✅ 无引用 |
+| 弃用 `snapshotEvents` / `eventAt` / `ownEvents` | 同步历史读取接口不可用 | ✅ 无引用 |
+| `spill-policy` 的 `maxInlineBytes` → **`maxInlineTokens`** | 自定义配置需改键名 | ✅ 无引用 |
+| PTC 包名统一为 **`ptc-runtime`** 系列，旧名不再兼容 | 自定义配置需更新 | ✅ 无引用 |
+| **Session 日志升级为 V4** | 自定义日志读取器需适配 | ⚠️ **见下** |
+| **配置热更新取消事务回滚** | 插件激活失败可能**部分生效** | ⚠️ **风险变大，见下** |
+
+两条需要特别注意的：
+
+**① Session 已是 V4，但文件名仍是 `.v3.jsonl.zstd`**
+
+```
+文件名: session.v3.jsonl.zstd
+内容:   {"type":"session","version":4, ...}
+```
+
+**本文档「读会话日志的正确方法」那套脚本仍然可用**（逐帧 zstd 解压照旧，实测读到 3000+ 条记录）。
+文件名保留 `.v3.` 是兼容考虑——**不要以为还是 V3**。
+
+**② 热加载的风险变大了**
+
+> 0.1.7：**配置热更新取消事务回滚**——解析失败保留原配置，**插件激活失败可能部分生效**。
+
+配合你 profile 的 `"patchReload": "live"`，意味着**改 `cordis.patch.yml` 出错的后果比以前更严重**
+（以前会整体回滚，现在可能半生效）。**webguard 那次事故的土壤仍在** —— 改这个文件前先备份。
+
+### 对本项目的其他相关变更（非破坏性）
+
+- 插件管理页支持**安装 / 配置 / 启停 / 运行时卸载**；安装可选官方源 / 国内镜像 / 自定义源
+- **插件安装与启动会检查与 DSH 版本的兼容性**，不兼容会说明原因，并可对确切版本授予例外
+- 插件可声明**无需重载的配置字段** —— 只改这些字段会保留运行中的插件实例
+- 插件组合包支持**按顺序加载多个 patch 文件**（原单文件写法仍可用）
+- 新增 **`--dump-config-schema`**：导出配置与 patch 的 JSON Schema，辅助配置编写与静态检查
+- **设置改由 profile 的插件配置保存**；旧 `settings.yaml` 仅尝试导入一次
+  （本机该文件已不存在，说明迁移已完成）
 
 ---
 
@@ -259,22 +312,40 @@ HEAD 见 git log(截至本文档更新时为 f17305e)
 | `plugins/dsh-peak-valley-plugin` | 峰谷时段与实时单价（常驻包） |
 | `plugins/dsh-whale-pet-plugin-patched` | **鲸鱼娘桌宠修复版(9 项修复)**（常驻包） |
 | `plugins/dsh-webguard` | 端口冲突检测(**默认不装**)（常驻包） |
-| `plugins/dsh-context-budget` | **上下文预算监控 —— 动态 Cordis 插件，装法完全不同** |
+| `plugins/dsh-context-budget` | **上下文预算监控** —— 目录里同时有动态版源码与**常驻版产物** |
 | `patches/whale-pet/` | 桌宠两个成品文件 |
 | `README.md` / `INSTALL.md` / `install.mjs` / `build-repo.mjs` | 文档与工具 |
 
-#### ⚠️ 两类插件，别搞混
+#### ⚠️ `dsh-context-budget`：两个版本并存，别装错
 
-| | 常驻插件包（前四个） | 动态 Cordis 插件（`dsh-context-budget`） |
+这个插件目录里**有两份东西**：
+
+| 路径 | 是什么 | 用途 |
 |---|---|---|
-| 代码在哪 | `~\.dsh\profiles\web\node_modules\<pkg>` | **只在当前 DSH 进程内存里** |
-| 怎么装 | `node install.mjs` | `cordis_define` 贴入 `cordis-define.json` → `cordis_run` → 界面批准客户端半 |
-| 重启后 | 照常自动加载 | **消失**，需重新装 |
-| 登记 | 在 `cordis.patch.yml` 与 `plugins.json` | **不要**登记进 `plugins.json` |
+| `lib/host.js` + `lib/client.js` + `cordis-define.json` | **动态版源码**（原始形态） | 留作源；`permanent/build.mjs` 从它生成常驻版 |
+| **`permanent/`** | **常驻版产物**（可直接装） | 装进 `node_modules`；说明见 `permanent/README.md` |
 
-`dsh-context-budget` 功能：实时显示**每个对话自身**的上下文占用（与界面仪表同源），跨 20/40/60/80/100% 自动重写工作区根目录的 `上下文经验教训-<会话短id>.md`，100% 弹窗告警，并经 `agent/pre-step` 把告警注入该模型下一步输入。零模型调用、零工具注册。
+**为什么必须两版**：`0.1.7-rc.1` 起**创造模式移除了 `cordis_define` / `cordis_run` 工具**，动态插件在新版**根本无法安装**；而且动态定义只在进程内存里，重启必失。唯一可用形态是**常驻插件包**。
 
-**它也证明了一件事**：动态插件重启就丢，所以**仓库是它唯一的备份**——丢了就用 `cordis-define.json` 重装。
+**当前状态（已核实）**：常驻版**已装进 profile 并在运行**
+
+```
+~\.dsh\profiles\web\cordis.patch.yml
+   - insert: id: context-budget   name: dsh-context-budget-plugin
+~\.dsh\profiles\web\node_modules\dsh-context-budget-plugin\
+   package.json  lib\index.js  lib\core.js  client\client.js
+```
+
+功能：实时显示**每个对话自身**的上下文占用（与界面仪表同源），跨 20/40/60/80/100% 自动重写工作区根目录的 `上下文经验教训-<会话短id>.md`，100% 弹窗告警，并经 `agent/pre-step` 把告警注入该模型下一步输入。零模型调用、零工具注册。
+
+重新生成常驻版：
+
+```powershell
+node "D:\新建文件夹\ai_text\dsh-plugins-repo\plugins\dsh-context-budget\permanent\build.mjs"
+```
+
+> ⚠️ 常驻版的 `lib/core.js` 与动态版的 `lib/host.js` **内容本就不同**（迁移时改了两处外壳适配），
+> **别拿哈希不一致当"文件坏了"**。`build.mjs` 用精确替换 + 命中数断言打补丁，不命中即构建失败。
 
 #### ⚠️ `build-repo.mjs` 有个会咬人的特性
 
@@ -385,15 +456,18 @@ D:\新建文件夹\ai_text\_archive\
 
 ---
 
-## 五、当前状态(2026-09-22 更新)
+## 五、当前状态(2026-09-23 更新)
 
 ```
-DSH        : 以 Get-NetTCPConnection -LocalPort 3080 为准
+DSH 版本   : 0.1.7-rc.2   ← 已从 0.1.5-rc.2 升级
+DSH 进程   : 以 Get-NetTCPConnection -LocalPort 3080 为准
 本会话     : session-dfedd899-150b-43f0-9aae-b514a135daa8（已被分叉出 d3774e32）
-仓库       : HEAD f17305e, 工作树干净, 100 文件, 5 个插件目录
+仓库       : 见 git log, 5 个插件目录（含常驻版 dsh-context-budget-plugin）
 工作区     : 约 16 MB + prototype\（另一段对话的原型游戏）与 _shot\
 在线插件   : 以 ~\.dsh\profiles\web\cordis.patch.yml 为准,别靠记忆
+             实测已挂载: restart / peak-valley / whale-pet / context-budget
 代理       : 127.0.0.1:7897 经常是关的，推送前先确认
+会话日志   : 已是 V4 内容，但文件名仍为 session.v3.jsonl.zstd
 ```
 
 ### 桌宠 9 项修复(全部已生效并真机验证)

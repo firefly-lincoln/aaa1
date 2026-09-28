@@ -171,8 +171,14 @@ agent/pre-step → 100% 时注入告警
 | `lib/client.js` | 客户端半函数体（用 `React.createElement`，无 JSX） |
 | `cordis-define.json` | **可直接使用的 `cordis_define` 参数**（含两半源码的转义形式） |
 | `check.mjs` | 自检：语法 + 关键符号 + 反向断言。`node check.mjs` |
+| `permanent/` | **常驻版（重启后自动启动）** —— 生成器 `build.mjs`、手写外壳 `lib/index.js`、自检 `check.mjs`、安装说明 |
 | `CHANGELOG.md` | 版本史 v1→v9，含每个版本踩的坑 |
 | `README.md` | 本文档 |
+
+> **想让它在 DSH 重启后自动启动** → 看 [`permanent/README.md`](permanent/README.md)。
+> 动态插件**没有任何办法**做到这一点（定义只活在进程内存里，`definitions do not survive a process restart`）；
+> 唯一的路是把同一份 body 重新宿主成**常驻插件包**，由 profile 在 DSH 启动时加载。
+> 常驻版已在本仓库构建并自检通过（27 项），安装需要重启一次 DSH。
 
 ---
 
