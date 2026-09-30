@@ -29,6 +29,7 @@ client/client.js    浏览器侧（前端）
 | 8 | 修复 7 导致月度算成 ¥0 | 恢复顺序颠倒 | 调整启动顺序 |
 | 9 | 浏览器操作后桌宠**掉到窗口下面** | `Topmost` 只请求一次，后被置顶的窗口会插到更上层 | `SetWindowPos(HWND_TOPMOST)` 每秒重申 |
 | 10 | DSH 0.1.7 后**设置卡消失**（找不到桌宠设置） | 设置槽位从 `settings.plugin.item` 改名为 `settings.plugins.tab` | 改用新槽位注册 |
+| 11 | 桌宠挡屏幕，**无法调大小** | 桌面宠尺寸全硬编码（`petScale` 只管浏览器宠） | 新增「桌面宠大小」设置 |
 
 ---
 
@@ -393,6 +394,93 @@ Select-String -Path "$env:USERPROFILE\.dsh\profiles\web\node_modules\dsh-whale-p
 ```
 
 文件从 44,214 B 增至 **44,851 B**。
+
+---
+
+## 11. 新增「桌面宠大小」设置（可手动缩放）
+
+**需求**：虚化后桌宠仍可能挡屏幕，希望能手动调小（也能调大）。
+
+**背景**：设置里原本只有 **`petScale`，那是浏览器宠的**（`rootEl.style.transform = 'scale(...)'`），
+桌面宠（WPF 窗口）的尺寸全是硬编码，**完全没有缩放能力**。所以这是新增功能而非修 bug。
+
+**改动**（4 个文件）：
+
+| 文件 | 改动 |
+|---|---|
+| `lib/index.js` | 设置项 `desktopPetScale`（默认 1.0，夹取 0.5~1.6）；视觉树尺寸参数化；注入 `S()` 与 `Set-UIScale()`；`Loaded` 时套用 `LayoutTransform`；`Update-UI` 里每 2 秒检测设置变化 |
+| `lib/pet-views.js` | `Set-WinHeight` 改为按测量尺寸；`$big/$rm/$warn` 的宽高与字号参数化 |
+| `client/client.js` | 设置卡新增「桌面宠大小」滑块（50%~160%） |
+| `whale-pet.ps1`（生成物） | 桌面宠**每次刷新时重读** `whale-settings.json`，所以拖滑块约 2 秒后自动跟随，**不用重启桌宠** |
+
+**三个关键设计点（都是实测逼出来的）**：
+
+**① 尺寸不能用「基准值 × 缩放」估算 —— 放大时会裁掉内容**
+
+```
+LayoutTransform 放大的是【测量值】，不是线性缩放:
+  scale=1.25  窗口 313x425  内容需要 312x472   → 裁掉 47px
+  scale=1.6   窗口 400x544  内容需要 512x720   → 裁掉 176px
+```
+
+改为用 `Measure()` 量出**缩放后的真实内容尺寸**再撑开窗口：
+
+```powershell
+$script:root.Measure((New-Object System.Windows.Size(([double]$win.Width), [double]::PositiveInfinity)))
+$win.Height = [double]$script:root.DesiredSize.Height
+```
+
+> 可用宽度必须传**实际窗口宽度**：传 `PositiveInfinity` 会让文本按单行测量，高度被低估。
+
+**② 必须用 `LayoutTransform`，不能用 `RenderTransform`**
+
+后者是**位图缩放**，放大后文字和图片会糊。
+
+**③ `$script:` 后面不能跟函数调用**
+
+```powershell
+$script:S(20)    # 无效语法：Unexpected token '('
+S(20)            # 正确（函数本就是脚本作用域，裸名即可）
+```
+
+同理，函数调用塞进构造器参数时要加括号（参数模式不认）：
+
+```powershell
+New-Object System.Windows.Thickness(0, S(4), 0, 0)      # 错
+New-Object System.Windows.Thickness(0, (S(4)), 0, 0)    # 对
+```
+
+**真机实测**（脚本 `_archive/tools/test-petscale*.ps1` 同款做法）：
+
+```
+设置   期望 W     实测窗口        判断
+0.5    125        125x93          OK
+0.75   188        187x167         OK
+1.0    250        250x306         OK
+1.25   312        313x429         OK
+1.5    375        375x640         OK
+1.6    400        400x706         OK     ← 高度随内容增长，不被裁
+
+0.2（越界下限）-> 回退 1.0 -> 250x306   ✅
+2.5（越界上限）-> 回退 1.0 -> 250x306   ✅
+1.2            -> 300x425 = 250×1.2      ✅
+```
+
+**最后一项（1.2）没有重启桌宠**，窗口自己变了 → 证实 2 秒实时跟随有效。
+
+> ⚠️ 越界值是**回退到 1.0**（不是夹到边界）。直接改 `whale-settings.json` 时是这个行为；
+> 走设置卡滑块则受 `min/max` 限制，本来就到不了越界值。
+
+**文件变化**：`lib/index.js` 99,109 → **104,444 B**；`lib/pet-views.js` 30,380 B（本项开始纳入 patches）；
+`client/client.js` 44,851 → **45,662 B**。
+
+**验证修复在位**：
+
+```powershell
+Select-String -Path "$env:USERPROFILE\.whale-pet\run\whale-pet.ps1" -Pattern 'function Set-UIScale','function Read-UiScale'
+```
+
+生成脚本约 **41,600 B**（含 `Set-UIScale` 2 处 / `Read-UiScale` 4 处 / `S(196)` 9 处）。
 
 ---
 

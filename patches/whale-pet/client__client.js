@@ -53,7 +53,7 @@ window.__ModuleLoader__.load({ id: "dsh-whale-pet-plugin", factory: function (re
   var S = {
     mode: 'balance',
     data: null,
-    settings: { idleEnabled: true, idleFrequency: 'normal', voiceEnabled: true, browserPetEnabled: true, petScale: 0.75, autoLaunchPet: false, lowBalanceAlert: true },
+    settings: { idleEnabled: true, idleFrequency: 'normal', voiceEnabled: true, browserPetEnabled: true, petScale: 0.75, desktopPetScale: 1, autoLaunchPet: false, lowBalanceAlert: true },
     busy: false,
     notice: null,
     noticeTimer: null,
@@ -820,6 +820,21 @@ window.__ModuleLoader__.load({ id: "dsh-whale-pet-plugin", factory: function (re
         return wrap
       })()))
       bodyEl.appendChild(sw('autoLaunchPet', '自动拉起桌面宠', 'DSH 启动时自动出现桌面宠(默认关,靠木牌「拉起桌宠」)'))
+      bodyEl.appendChild(buildRow('桌面宠大小', '50% ~ 160%（调整桌面窗口整体大小，约 2 秒后生效）', (function () {
+        var rng = make('input', 'ws-range')
+        rng.type = 'range'
+        rng.min = '0.5'
+        rng.max = '1.6'
+        rng.step = '0.05'
+        rng.value = String(S.cfg.desktopPetScale || 1)
+        var scale = make('span', 'ws-scale', Math.round((S.cfg.desktopPetScale || 1) * 100) + '%')
+        rng.addEventListener('input', function () { scale.textContent = Math.round(parseFloat(rng.value) * 100) + '%' })
+        rng.addEventListener('change', function () { save({ desktopPetScale: parseFloat(rng.value) }) })
+        var wrap = make('span')
+        wrap.appendChild(rng)
+        wrap.appendChild(scale)
+        return wrap
+      })()))
       bodyEl.appendChild(sw('lowBalanceAlert', '低余额提醒', '余额低于 5 元时提醒充值'))
       bodyEl.appendChild(sw('dndEnabled', '免打扰时段', '时段内静音、不弹气泡;审批与「需要协助」仍会提醒'))
       bodyEl.appendChild(buildRow('免打扰时间', '支持跨午夜(如 22:00 – 09:00)', (function () {

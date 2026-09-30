@@ -311,7 +311,7 @@ HEAD 见 git log(截至本文档更新时为 f17305e)
 |---|---|
 | `plugins/dsh-restart-plugin` | 一键重启 DSH（常驻包，有 `cordis.patch.yml`） |
 | `plugins/dsh-peak-valley-plugin` | 峰谷时段与实时单价（常驻包） |
-| `plugins/dsh-whale-pet-plugin-patched` | **鲸鱼娘桌宠修复版(10 项修复)**（常驻包） |
+| `plugins/dsh-whale-pet-plugin-patched` | **鲸鱼娘桌宠修复版(11 项修复)**（常驻包） |
 | `plugins/dsh-webguard` | 端口冲突检测(**默认不装**)（常驻包） |
 | `plugins/dsh-context-budget` | **上下文预算监控** —— 目录里同时有动态版源码与**常驻版产物** |
 | `patches/whale-pet/` | 桌宠两个成品文件 |
@@ -471,7 +471,7 @@ DSH 进程   : 以 Get-NetTCPConnection -LocalPort 3080 为准
 会话日志   : 已是 V4 内容，但文件名仍为 session.v3.jsonl.zstd
 ```
 
-### 桌宠 10 项修复(全部已生效并真机验证)
+### 桌宠 11 项修复(全部已生效并真机验证)
 
 | # | 问题 | 根因 |
 |---|---|---|
@@ -485,6 +485,7 @@ DSH 进程   : 以 Get-NetTCPConnection -LocalPort 3080 为准
 | 8 | 修复 7 时月度算成 ¥0 | 恢复顺序颠倒(对空 Map 求和) |
 | 9 | 浏览器操作后桌宠**掉到窗口下面** | `Topmost` 只在设置时置顶一次，后被置顶的窗口会插到更上层 |
 | 10 | **DSH 0.1.7 升级后设置卡消失** | 设置槽位由 `settings.plugin.item` 改名 `settings.plugins.tab` |
+| 11 | 桌宠挡屏幕，**无法调大小** | 桌面宠尺寸全硬编码（`petScale` 只管浏览器宠） |
 
 **修复 9 的要点**：用 `SetWindowPos(HWND_TOPMOST, SWP_NOACTIVATE|NOMOVE|NOSIZE)` 每秒重申置顶。
 **`SWP_NOACTIVATE` 不能省** —— 否则重申置顶会抢焦点，打断用户输入。
@@ -541,6 +542,6 @@ DSH 进程   : 以 Get-NetTCPConnection -LocalPort 3080 为准
 ## 八、一句话交接
 
 > 这个工作区的核心资产是 **`dsh-plugins-repo`(已同步 GitHub)** 和 **`_archive`(API Key + 旧会话)**。
-> 桌宠的 10 项修复只存在于 `node_modules`,丢了就用仓库恢复。
+> 桌宠的 11 项修复只存在于 `node_modules`,丢了就用仓库恢复。
 > **`dsh-context-budget` 是动态插件，重启即失** —— 仓库是它唯一的备份。
 > **改插件代码一定要重启 DSH;有副作用的插件绝不热加载;推送前先确认代理在跑。**

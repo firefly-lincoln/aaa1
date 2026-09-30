@@ -65,6 +65,7 @@ const DEFAULT_SETTINGS = {
   voiceEnabled: true,     // 语音开关(浏览器+桌面宠)
   browserPetEnabled: true, // 浏览器桌宠显隐(关闭后隐藏浏览器宠,不影响桌面宠)
   petScale: 0.75,         // 浏览器宠大小
+  desktopPetScale: 1.0,   // 桌面宠(桌面窗口)大小;独立于 petScale,0.5~1.6,由 whale-pet.ps1 直接读本文件生效
   autoLaunchPet: false,   // 自动拉起桌面宠(默认关:需靠浏览器木牌「拉起桌宠」)
   lowBalanceAlert: true,  // 低余额提醒
   lowBalanceThreshold: 5, // 低余额阈值(元),验收时可通过 settings 接口临时调大
@@ -142,9 +143,34 @@ function Write-Hb {
 function Write-Cmd($action, $value) {
   try { $o = @{ action = $action }; if ($null -ne $value) { $o.value = $value }; $o | ConvertTo-Json -Compress | Out-File -FilePath $cmdPath -Encoding ascii } catch { }
 }
+# ---------- 桌面宠缩放 ----------
+# 基准尺寸(scale=1.0 时的布局常量)。所有硬编码尺寸都由这些常量派生,
+# 这样调整大小时不会漏改某一处导致布局错乱。
+$script:BASE_W = 250
+$script:BASE_IMG_H = 150
+$script:BASE_BIG_W = 196
+$script:BASE_EYE = 20
+$script:BASE_E1 = 11
+$script:BASE_E2 = 4
+# 设置文件与状态文件同目录(调用方只会传文件路径,不传目录)
+$settingsPath = Join-Path (Split-Path $statePath -Parent) 'whale-settings.json'
+function Read-UiScale {
+  # 每次调用都重读:设置面板改完 → 插件写 whale-settings.json → 这里约 2 秒后跟上
+  try {
+    if (Test-Path $settingsPath) {
+      $j = Get-Content $settingsPath -Raw -Encoding UTF8 | ConvertFrom-Json
+      $v = [double]$j.desktopPetScale
+      if ($v -ge 0.5 -and $v -le 1.6) { return $v }
+    }
+  } catch { }
+  return 1.0
+}
+$script:uiScale = Read-UiScale
+$script:baseH = 340
+$script:layoutDone = $false
 $win = New-Object System.Windows.Window
-$win.Width = 250
-$win.Height = 340
+$win.Width = $script:BASE_W * $script:uiScale
+$win.Height = $script:baseH * $script:uiScale
 $win.Title = 'WhalePet'
 $win.Topmost = $true
 $win.AllowsTransparency = $true
@@ -164,17 +190,17 @@ $card.Margin = New-Object System.Windows.Thickness(2)
 $stack = New-Object System.Windows.Controls.StackPanel
 $stack.Margin = New-Object System.Windows.Thickness(9)
 $img = New-Object System.Windows.Controls.Image
-$img.Height = 150
+$img.Height = S(150)
 $img.Stretch = 'Uniform'
 $img.Margin = New-Object System.Windows.Thickness(0, 10, 0, -6)
 if (Test-Path $skin0) { $img.Source = New-Object System.Windows.Media.Imaging.BitmapImage([Uri]$skin0) }
 $title = New-Object System.Windows.Controls.TextBlock
-$title.FontSize = 13
+$title.FontSize = S(13)
 $title.FontWeight = 'Bold'
 $title.Foreground = New-Object System.Windows.Media.SolidColorBrush(([System.Windows.Media.ColorConverter]::ConvertFromString('#2E5CB8')))
 $title.HorizontalAlignment = 'Center'
 $big = New-Object System.Windows.Controls.TextBlock
-$big.FontSize = 20
+$big.FontSize = S(20)
 $big.FontWeight = 'Bold'
 $big.Foreground = New-Object System.Windows.Media.SolidColorBrush(([System.Windows.Media.ColorConverter]::ConvertFromString('#17408F')))
 $big.HorizontalAlignment = 'Center'
@@ -187,7 +213,7 @@ $btns.Margin = New-Object System.Windows.Thickness(0, 6, 0, 0)
 function New-Btn($text, $handler) {
   $b = New-Object System.Windows.Controls.Button
   $b.Content = $text
-  $b.FontSize = 11
+  $b.FontSize = S(11)
   $b.Padding = New-Object System.Windows.Thickness(6, 3)
   $b.MinWidth = 26
   $b.Margin = New-Object System.Windows.Thickness(3, 0, 3, 0)
@@ -200,13 +226,13 @@ function New-Row($k, $v) {
   $p.Margin = New-Object System.Windows.Thickness(0, 1, 0, 1)
   $kt = New-Object System.Windows.Controls.TextBlock
   $kt.Text = [string]$k
-  $kt.FontSize = 10.5
+  $kt.FontSize = S(10.5)
   $kt.Width = 66
   $kt.TextAlignment = 'Left'
   $kt.Foreground = New-Object System.Windows.Media.SolidColorBrush(([System.Windows.Media.ColorConverter]::ConvertFromString('#5B7395')))
   $vt = New-Object System.Windows.Controls.TextBlock
   $vt.Text = [string]$v
-  $vt.FontSize = 10.5
+  $vt.FontSize = S(10.5)
   $vt.FontWeight = 'Bold'
   $vt.Width = 122
   $vt.TextAlignment = 'Right'
@@ -249,6 +275,62 @@ function Set-Topmost {
     if (($ex -band 0x8) -eq 0) { [void][W]::SetWindowLong($script:hwnd, -20, $ex -bor 0x8) }
     # HWND_TOPMOST=-1, SWP_NOSIZE=1|SWP_NOMOVE=2|SWP_NOACTIVATE=0x10
     [void][W]::SetWindowPos($script:hwnd, [IntPtr]::new(-1), 0, 0, 0, 0, 0x13)
+  } catch { }
+}
+# 统一缩放函数:把【基准值】乘上当前 uiScale。
+# 布局里存的是赋值当时的数值(不是表达式),所以每次改缩放都必须重新赋值一遍。
+function S($base) { return ([double]$base * [double]$script:uiScale) }
+function Set-UIScale($v) {
+  # 先按当前右/下边缘锚定,再改尺寸,避免缩放时向屏幕外溢出
+  try {
+    $v = [double]$v
+    if ($v -lt 0.5) { $v = 0.5 }
+    if ($v -gt 1.6) { $v = 1.6 }
+    if ([Math]::Abs($v - [double]$script:uiScale) -lt 0.001) { return }
+    $oldW = [double]$win.Width
+    $oldH = [double]$win.Height
+    $anchorR = [double]$win.Left + $oldW
+    $anchorB = [double]$win.Top + $oldH
+    # 先改缩放系数,再重设所有派生尺寸(它们此时会用到新系数)
+    $script:uiScale = $v
+    $img.Height = S(150)
+    $eye.Width = S(20)
+    $eye.Height = S(20)
+    $eye.Margin = New-Object System.Windows.Thickness(0, (100 * $v), (8 * $v), 0)
+    $eye.BorderThickness = New-Object System.Windows.Thickness([Math]::Max(1, [Math]::Round($v)))
+    $e1.Width = S(11)
+    $e1.Height = S(11)
+    $e1.StrokeThickness = 1.4 * $v
+    $e2.Width = S(4)
+    $e2.Height = S(4)
+    # 文字用 LayoutTransform:RenderTransform 是位图缩放,放大会糊
+    if ($script:layoutDone -and $null -ne $script:root) {
+      $script:root.LayoutTransform = New-Object System.Windows.Media.ScaleTransform($v, $v)
+      $script:root.UpdateLayout()
+    }
+    # 尺寸不用"基准值×缩放"估算 —— 实测那样做放大时会裁掉内容
+    # (LayoutTransform 放大的是测量值:scale=1.25 时内容要 472px,而 340×1.25 只有 425px)。
+    # 改为量出【缩放后的真实内容尺寸】再撑开窗口,天然不会被裁。
+    $win.Width = S(250)
+    if ($script:layoutDone -and $null -ne $script:root) {
+      try {
+        $script:root.Measure((New-Object System.Windows.Size(([double]$win.Width), [double]::PositiveInfinity)))
+        $needH = [double]$script:root.DesiredSize.Height
+        if ($needH -gt 0) { $win.Height = $needH }
+      } catch { Set-WinHeight $script:baseH }
+    } else { Set-WinHeight $script:baseH }
+    # 重新夹回工作区
+    $nw = [double]$win.Width
+    $nh = [double]$win.Height
+    $wa2 = [System.Windows.SystemParameters]::WorkArea
+    $nl = $anchorR - $nw
+    $nt = $anchorB - $nh
+    if ($nl -lt $wa2.Left) { $nl = $wa2.Left }
+    if ($nt -lt $wa2.Top) { $nt = $wa2.Top }
+    if (($nl + $nw) -gt $wa2.Right) { $nl = $wa2.Right - $nw }
+    if (($nt + $nh) -gt $wa2.Bottom) { $nt = $wa2.Bottom - $nh }
+    $win.Left = $nl
+    $win.Top = $nt
   } catch { }
 }
 function Update-GhostState {
@@ -325,6 +407,12 @@ function End-Drag {
 }
 function Update-UI {
   Write-Hb
+  # 跟随设置里的桌面宠大小:每次刷新都重读 whale-settings.json,
+  # 用户在设置卡里拖滑块后(插件写文件)约 2 秒内自动跟上,无需重启桌宠。
+  try {
+    $wantScale = Read-UiScale
+    if ([Math]::Abs($wantScale - [double]$script:uiScale) -gt 0.001) { Set-UIScale $wantScale }
+  } catch { }
   $s = $null
   if (Test-Path $statePath) {
     try { $s = Get-Content $statePath -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $s = $null }
@@ -332,7 +420,7 @@ function Update-UI {
   if ($s -eq $null) { return }
   $title.Text = ''
   $big.Text = ''
-  $big.FontSize = 20
+  $big.FontSize = S(20)
   $big.TextWrapping = 'NoWrap'
   $big.Width = [double]::NaN
   $big.TextAlignment = 'Center'
@@ -359,7 +447,22 @@ $topmostTimer.Start()
 $win.Add_MouseLeftButtonDown({ Start-Drag })
 $win.Add_MouseMove({ Do-Drag })
 $win.Add_MouseLeftButtonUp({ End-Drag })
-$win.Add_Loaded({ $script:hwnd = (New-Object System.Windows.Interop.WindowInteropHelper($win)).Handle; Update-GhostState })
+$win.Add_Loaded({
+  $script:hwnd = (New-Object System.Windows.Interop.WindowInteropHelper($win)).Handle
+  # 缩放布局:此时视觉树才真正挂上,LayoutTransform 必须在这之后设。
+  # 用 LayoutTransform 而不是 RenderTransform —— 后者是位图缩放,放大会糊。
+  $script:layoutDone = $true
+  try {
+    $script:uiScale = Read-UiScale
+    $script:root.LayoutTransform = New-Object System.Windows.Media.ScaleTransform($script:uiScale, $script:uiScale)
+  } catch { }
+  try {
+    $script:root.Measure((New-Object System.Windows.Size(([double]$win.Width), [double]::PositiveInfinity)))
+    $nh = [double]$script:root.DesiredSize.Height
+    if ($nh -gt 0) { $win.Height = $nh }
+  } catch { }
+  Update-GhostState
+})
 $win.Add_Closed({
   $uiTimer.Stop()
   $hoverTimer.Stop()
@@ -368,6 +471,7 @@ $win.Add_Closed({
   $mutex.ReleaseMutex()
 })
 $root = New-Object System.Windows.Controls.Grid
+$script:root = $root
 $win.Content = $root
 $outer = New-Object System.Windows.Controls.StackPanel
 $outer.VerticalAlignment = 'Top'
@@ -380,26 +484,26 @@ $card.Child = $stack
 [void]$stack.Children.Add($btns)
 [void]$root.Children.Add($outer)
 $eye = New-Object System.Windows.Controls.Button
-$eye.Width = 20
-$eye.Height = 20
+$eye.Width = S(20)
+$eye.Height = S(20)
 $eye.Padding = New-Object System.Windows.Thickness(0)
 $eye.HorizontalAlignment = 'Right'
 $eye.VerticalAlignment = 'Top'
-$eye.Margin = New-Object System.Windows.Thickness(0, 100, 8, 0)
+$eye.Margin = New-Object System.Windows.Thickness(0, (100 * $script:uiScale), (8 * $script:uiScale), 0)
 $eye.Background = [System.Windows.Media.Brushes]::White
 $eye.BorderBrush = New-Object System.Windows.Media.SolidColorBrush(([System.Windows.Media.ColorConverter]::ConvertFromString('#9DB8E8')))
-$eye.BorderThickness = New-Object System.Windows.Thickness(1)
+$eye.BorderThickness = New-Object System.Windows.Thickness([Math]::Max(1, [Math]::Round($script:uiScale)))
 $eye.Cursor = 'Hand'
 $eye.ToolTip = 'Ghost mode'
 $eyeGrid = New-Object System.Windows.Controls.Grid
 $e1 = New-Object System.Windows.Shapes.Ellipse
-$e1.Width = 11
-$e1.Height = 11
+$e1.Width = S(11)
+$e1.Height = S(11)
 $e1.Stroke = New-Object System.Windows.Media.SolidColorBrush(([System.Windows.Media.ColorConverter]::ConvertFromString('#2E5CB8')))
-$e1.StrokeThickness = 1.4
+$e1.StrokeThickness = 1.4 * $script:uiScale
 $e2 = New-Object System.Windows.Shapes.Ellipse
-$e2.Width = 4
-$e2.Height = 4
+$e2.Width = S(4)
+$e2.Height = S(4)
 $e2.Fill = New-Object System.Windows.Media.SolidColorBrush(([System.Windows.Media.ColorConverter]::ConvertFromString('#2E5CB8')))
 [void]$eyeGrid.Children.Add($e1)
 [void]$eyeGrid.Children.Add($e2)
@@ -678,6 +782,7 @@ export function apply(ctx, config) {
       if (typeof obj.voiceEnabled === 'boolean') s.voiceEnabled = obj.voiceEnabled
       if (typeof obj.browserPetEnabled === 'boolean') s.browserPetEnabled = obj.browserPetEnabled
       if (typeof obj.petScale === 'number' && isFinite(obj.petScale)) s.petScale = Math.min(1.2, Math.max(0.6, obj.petScale))
+      if (typeof obj.desktopPetScale === 'number' && isFinite(obj.desktopPetScale)) s.desktopPetScale = Math.min(1.6, Math.max(0.5, obj.desktopPetScale))
       if (typeof obj.autoLaunchPet === 'boolean') s.autoLaunchPet = obj.autoLaunchPet
       if (typeof obj.lowBalanceAlert === 'boolean') s.lowBalanceAlert = obj.lowBalanceAlert
       if (typeof obj.lowBalanceThreshold === 'number' && isFinite(obj.lowBalanceThreshold) && obj.lowBalanceThreshold > 0) s.lowBalanceThreshold = obj.lowBalanceThreshold
@@ -696,6 +801,7 @@ export function apply(ctx, config) {
       if (typeof patch.voiceEnabled === 'boolean') s.voiceEnabled = patch.voiceEnabled
       if (typeof patch.browserPetEnabled === 'boolean') s.browserPetEnabled = patch.browserPetEnabled
       if (typeof patch.petScale === 'number' && isFinite(patch.petScale)) s.petScale = Math.min(1.2, Math.max(0.6, patch.petScale))
+      if (typeof patch.desktopPetScale === 'number' && isFinite(patch.desktopPetScale)) s.desktopPetScale = Math.min(1.6, Math.max(0.5, patch.desktopPetScale))
       if (typeof patch.autoLaunchPet === 'boolean') s.autoLaunchPet = patch.autoLaunchPet
       if (typeof patch.lowBalanceAlert === 'boolean') s.lowBalanceAlert = patch.lowBalanceAlert
       if (typeof patch.lowBalanceThreshold === 'number' && isFinite(patch.lowBalanceThreshold) && patch.lowBalanceThreshold > 0) s.lowBalanceThreshold = patch.lowBalanceThreshold
@@ -1269,7 +1375,7 @@ export function apply(ctx, config) {
             let z = (zmod && (zmod.default || zmod)) || null
             if (z && typeof z.object !== 'function' && z.default) z = z.default
             if (!z || typeof z.object !== 'function') return
-            svc.register('dsh-whale-pet', z.object({ petScale: z.number().default(0.75), browserPetEnabled: z.boolean().default(true) }))
+            svc.register('dsh-whale-pet', z.object({ petScale: z.number().default(0.75), desktopPetScale: z.number().default(1.0), browserPetEnabled: z.boolean().default(true) }))
             // 探针 v2(妹妹实测修正):describe() 返回数组 [{ns,...}](dsh-settings:351),不是 {view:{namespaces}};
             // 两种形状都查,并把宿主实际 serve 的 ns 清单落进日志——一眼看穿认领成没成。
             let seen = false
