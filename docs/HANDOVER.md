@@ -532,6 +532,38 @@ DSH 进程   : 以 Get-NetTCPConnection -LocalPort 3080 为准
 而是**置顶窗口之间的层级顺序**会被后来者插入。
 
 **最强验证**:插件记账"今日段"= ¥2.94,**与真实余额下降 ¥2.94 完全吻合**(从 ¥39.39 降到 ¥36.45)。
+
+**修复 10 的要点**：DSH 0.1.7 重排设置界面，插件设置卡的**槽位改名**了：
+
+```
+0.1.5 ~ 0.1.6 :  settings.plugin.item    ← 旧
+0.1.7+        :  settings.plugins.tab    ← 新
+```
+
+注册进旧槽位 = 注册进一个没人渲染的地方 → 卡片**无声消失**（`try/catch` 吞掉了失败）。
+排查时可直接读权威槽位清单：`dsh-cordis-client-runner/lib/client.js` 里搜 `key: "settings.`。
+改完**必须重启 DSH**（客户端 bundle 不热加载）。
+
+**修复 11 的要点**：新增「桌面宠大小」设置（50%~160%，拖动约 2 秒实时跟随）。
+
+注意区分两个缩放：设置里原有的 **`petScale` 是浏览器宠的**（`rootEl.style.transform`），
+桌面宠（WPF 窗口）尺寸原本全硬编码。新加的 **`desktopPetScale` 只管桌面宠**。
+
+三个关键设计点（都是实测逼出来的）：
+
+1. **尺寸不能用「基准值 × 缩放」估算** —— `LayoutTransform` 放大的是**测量值**：
+   `scale=1.25` 时内容要 472px 而 `340×1.25` 只有 425px（裁 47px）；`scale=1.6` 裁 176px。
+   必须用 `Measure()` 量出缩放后的真实内容尺寸再撑开窗口。
+   且可用宽度要传**实际窗口宽度**（传 `PositiveInfinity` 会让文本按单行测量，高度被低估）。
+2. **必须用 `LayoutTransform`，不能用 `RenderTransform`** —— 后者是位图缩放，放大会糊。
+3. **语法坑见「错误 9」** —— `$script:S(20)` 非法；`Thickness(0, S(4), 0, 0)` 非法。
+
+关注的文件：`lib/index.js`（`Set-UIScale` / `S()` / `Read-UiScale`）、
+`lib/pet-views.js`（`Set-WinHeight` 按测量）、`client/client.js`（滑块）。
+桌宠**每 2 秒重读** `whale-settings.json`，所以改设置不用重启桌宠。
+
+**最强验证**:插件记账"今日段"= ¥2.94,**与真实余额下降 ¥2.94 完全吻合**(从 ¥39.39 降到 ¥36.45)。
+
 **修复 10 的要点**：DSH 0.1.7 重排设置界面，插件设置卡的**槽位改名**了：
 
 `
