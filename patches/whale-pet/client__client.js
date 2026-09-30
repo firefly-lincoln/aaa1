@@ -898,20 +898,27 @@ window.__ModuleLoader__.load({ id: "dsh-whale-pet-plugin", factory: function (re
       var styleEl = document.createElement('style')
       styleEl.textContent = SETTINGS_CSS
       document.head.appendChild(styleEl)
-      slots.inject('settings.plugin.item', function () {
+      // 槽位名:0.1.7 重排设置界面后，插件设置卡槽位从 'settings.plugin.item'
+      // 改名为 'settings.plugins.tab'（官方 dsh-client-ui-settings-plugins 里
+      // renderSlot("settings.plugins.tab", {}, { only: row.id }) 渲染）。
+      // 沿用旧名会注册进一个没人渲染的槽位 —— 卡片无声消失，且被下面的
+      // catch 吞掉、连报错都没有。契约见 dsh-cordis-client-runner 的槽位表。
+      slots.inject('settings.plugins.tab', function () {
         return slots.register(
-          { name: 'settings.plugin.item', id: 'dsh-whale-pet-plugin', order: 40, label: '鲸鱼娘桌宠', key: 'dsh-whale-pet' },
+          // id 用自有值:'all' 是官方只读清单占用的 id，复用会顶掉它。
+          // label 用 thunk:官方契约标注 string | (() => string)，thunk 每次投影重读。
+          { name: 'settings.plugins.tab', id: 'whale-pet', order: 40, label: function () { return '鲸鱼娘桌宠' } },
           function () { return makeSettingsCardElement() }
         )
       })
       // 探针:注册后自查 slot 条目表,一次钉死「注册到底成没成」(装包复验时看 console)
       if (typeof console !== 'undefined' && console.log) {
         try {
-          var entries = typeof slots.entries === 'function' ? slots.entries('settings.plugin.item') : null
+          var entries = typeof slots.entries === 'function' ? slots.entries('settings.plugins.tab') : null
           var ours = false
           var n = 0
           if (entries && typeof entries.forEach === 'function') {
-            entries.forEach(function (e) { n++; if (e && e.options && e.options.id === 'dsh-whale-pet-plugin') ours = true })
+            entries.forEach(function (e) { n++; if (e && e.options && e.options.id === 'whale-pet') ours = true })
           }
           console.log('[whale-pet] settings card registered; slot entries = ' + n + ', ours present = ' + ours)
         } catch (e) { console.log('[whale-pet] settings card registered (entries probe unavailable)') }

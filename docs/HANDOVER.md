@@ -2,7 +2,7 @@
 
 > **初版 2026-09-20 23:10,2026-09-22 修订**,替代并作废此前的同名文档(已归档到 `_archive\`)。
 > 本文档**完全自包含**,读者无需任何前置上下文,请**完整读完再动手**。
-> 本次修订:新增 5 个插件目录（含动态插件 `dsh-context-budget`）、桌宠第 9 项修复、错误 7/8、代理与多 AI 协作提醒。
+> 本次修订:新增 5 个插件目录、`dsh-context-budget` 常驻版、DSH 0.1.7 升级注意事项、桌宠第 9~10 项修复、错误 7/8、代理与多 AI 协作提醒。
 
 > ### 🔀 2026-09-25 更新：交接文档的分工
 >
@@ -311,7 +311,7 @@ HEAD 见 git log(截至本文档更新时为 f17305e)
 |---|---|
 | `plugins/dsh-restart-plugin` | 一键重启 DSH（常驻包，有 `cordis.patch.yml`） |
 | `plugins/dsh-peak-valley-plugin` | 峰谷时段与实时单价（常驻包） |
-| `plugins/dsh-whale-pet-plugin-patched` | **鲸鱼娘桌宠修复版(9 项修复)**（常驻包） |
+| `plugins/dsh-whale-pet-plugin-patched` | **鲸鱼娘桌宠修复版(10 项修复)**（常驻包） |
 | `plugins/dsh-webguard` | 端口冲突检测(**默认不装**)（常驻包） |
 | `plugins/dsh-context-budget` | **上下文预算监控** —— 目录里同时有动态版源码与**常驻版产物** |
 | `patches/whale-pet/` | 桌宠两个成品文件 |
@@ -471,7 +471,7 @@ DSH 进程   : 以 Get-NetTCPConnection -LocalPort 3080 为准
 会话日志   : 已是 V4 内容，但文件名仍为 session.v3.jsonl.zstd
 ```
 
-### 桌宠 9 项修复(全部已生效并真机验证)
+### 桌宠 10 项修复(全部已生效并真机验证)
 
 | # | 问题 | 根因 |
 |---|---|---|
@@ -484,6 +484,7 @@ DSH 进程   : 以 Get-NetTCPConnection -LocalPort 3080 为准
 | 7 | 「本月消耗」虚高约 4× | 历史金额是旧价「陈账」 |
 | 8 | 修复 7 时月度算成 ¥0 | 恢复顺序颠倒(对空 Map 求和) |
 | 9 | 浏览器操作后桌宠**掉到窗口下面** | `Topmost` 只在设置时置顶一次，后被置顶的窗口会插到更上层 |
+| 10 | **DSH 0.1.7 升级后设置卡消失** | 设置槽位由 `settings.plugin.item` 改名 `settings.plugins.tab` |
 
 **修复 9 的要点**：用 `SetWindowPos(HWND_TOPMOST, SWP_NOACTIVATE|NOMOVE|NOSIZE)` 每秒重申置顶。
 **`SWP_NOACTIVATE` 不能省** —— 否则重申置顶会抢焦点，打断用户输入。
@@ -491,6 +492,16 @@ DSH 进程   : 以 Get-NetTCPConnection -LocalPort 3080 为准
 而是**置顶窗口之间的层级顺序**会被后来者插入。
 
 **最强验证**:插件记账"今日段"= ¥2.94,**与真实余额下降 ¥2.94 完全吻合**(从 ¥39.39 降到 ¥36.45)。
+**修复 10 的要点**：DSH 0.1.7 重排设置界面，插件设置卡的**槽位改名**了：
+
+`
+0.1.5 ~ 0.1.6 :  settings.plugin.item    ← 旧
+0.1.7+        :  settings.plugins.tab    ← 新
+`
+
+注册进旧槽位 = 注册进一个没人渲染的地方 → 卡片**无声消失**（	ry/catch 吞掉了失败）。
+排查时可直接读权威槽位清单：dsh-cordis-client-runner/lib/client.js 里搜 key: "settings.。
+改完**必须重启 DSH**（客户端 bundle 不热加载）。
 
 ---
 
@@ -530,6 +541,6 @@ DSH 进程   : 以 Get-NetTCPConnection -LocalPort 3080 为准
 ## 八、一句话交接
 
 > 这个工作区的核心资产是 **`dsh-plugins-repo`(已同步 GitHub)** 和 **`_archive`(API Key + 旧会话)**。
-> 桌宠的 9 项修复只存在于 `node_modules`,丢了就用仓库恢复。
+> 桌宠的 10 项修复只存在于 `node_modules`,丢了就用仓库恢复。
 > **`dsh-context-budget` 是动态插件，重启即失** —— 仓库是它唯一的备份。
 > **改插件代码一定要重启 DSH;有副作用的插件绝不热加载;推送前先确认代理在跑。**

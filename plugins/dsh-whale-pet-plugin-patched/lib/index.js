@@ -1251,11 +1251,14 @@ export function apply(ctx, config) {
   })
 
   // ---------- 0.1.5 设置面板兼容:向 settingsScope 认领 namespace(桥接,不迁持久化) ----------
-  // 新宿主(>=0.1.5)的 settings.plugin.item 改为 keyed+namespace 派发:卡片只有在其 namespace
+  // 新宿主(>=0.1.5)的设置页改为 keyed+namespace 派发:卡片只有在其 namespace
   // 被宿主 settings 服务注册过(describe() 里有)才会渲染。桌宠的设置仍走自己的
   // whale-settings.json + /api/dsh-whale-pet/settings 路由,这里只做「派发认领」:
   // schema 为空对象,注册零持久化副作用。老宿主没有 settings/register(或没有 schemastery)
-  // 则整段静默跳过,面板仍按旧 list 契约(id/order/label)渲染。全部兜底,绝不因此崩插件。
+  // 则整段静默跳过。全部兜底,绝不因此崩插件。
+  //
+  // 注:承载卡片的【槽位名】在 0.1.7 由 'settings.plugin.item' 改为 'settings.plugins.tab'
+  // (见 client/client.js 的注册处)。本段认领 namespace 的机制在 0.1.7 仍有效,无需改动。
   try {
     var claim = function (scopeCtx) {
       try {

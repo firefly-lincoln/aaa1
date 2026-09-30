@@ -1,4 +1,4 @@
-﻿# 鲸鱼娘桌宠 · 修复版说明
+# 鲸鱼娘桌宠 · 修复版说明
 
 **上游**：[dleaf6211-hash/dsh-whale-pet](https://github.com/dleaf6211-hash/dsh-whale-pet) · npm `dsh-whale-pet-plugin`
 **基线版本**：`1.0.4-new`
@@ -28,6 +28,7 @@ client/client.js    浏览器侧（前端）
 | 7 | 本月消耗虚高约 4× | 历史金额是旧价「陈账」 | 启动自校验重算 |
 | 8 | 修复 7 导致月度算成 ¥0 | 恢复顺序颠倒 | 调整启动顺序 |
 | 9 | 浏览器操作后桌宠**掉到窗口下面** | `Topmost` 只请求一次，后被置顶的窗口会插到更上层 | `SetWindowPos(HWND_TOPMOST)` 每秒重申 |
+| 10 | DSH 0.1.7 后**设置卡消失**（找不到桌宠设置） | 设置槽位从 `settings.plugin.item` 改名为 `settings.plugins.tab` | 改用新槽位注册 |
 
 ---
 
@@ -303,6 +304,95 @@ Select-String -Path "$env:USERPROFILE\.whale-pet\run\whale-pet.ps1" -Pattern 'Se
 ```
 
 生成的脚本从 34,714 B 增至 **35,907 B**；出现 `Set-Topmost` / `topmostTimer` / `SetWindowPos` / `0x13` 即为已生效。
+
+---
+
+## 10. DSH 0.1.7 升级后设置卡消失
+
+**现象**：DSH 升到 `0.1.7-rc.2` 后，设置界面里**找不到「鲸鱼娘桌宠」这一项**。
+桌宠本体正常（余额/用量/效率照常显示），只是**配置入口没了**。
+
+**根因**：0.1.7 重排了设置界面，**插件设置卡所在的槽位改名了**：
+
+```
+0.1.5 ~ 0.1.6 :  settings.plugin.item     ← 旧名
+0.1.7+        :  settings.plugins.tab     ← 新名
+```
+
+桌宠的客户端仍注册到旧名，于是卡片被注册进一个**没有任何人渲染的槽位** —— 无声消失。
+
+**为什么完全查不到线索**：
+
+```js
+} catch (e) { /* 注册失败绝不让 GUI 启动崩掉 */ }
+```
+
+整个注册被 `try/catch` 包住，失败不留任何痕迹。更麻烦的是它自己的**探针也在查旧槽位**：
+
+```js
+var entries = slots.entries('settings.plugin.item')   // 旧名
+console.log('... settings card registered ...')       // 于是可能打印"成功"
+```
+
+**排查证据链**（四道独立确认）：
+
+| # | 检查 | 结果 |
+|---|---|---|
+| 1 | 0.1.7 全库搜 `plugin.item` | 0 命中 |
+| 2 | 桌宠 client 里新/旧槽位名 | 新 0 次 / 旧 3 次 |
+| 3 | 是否存在向后兼容别名 | 无 |
+| 4 | `settings.plugins.tab` 的必需字段 | 仅 `id` 必填，其余 optional |
+
+权威槽位清单可从 `dsh-cordis-client-runner/lib/client.js` 的契约表读出
+（搜 `key: "settings.`）：0.1.7 里 `settings.plugin.item` **不存在**。
+
+**改动**（`client/client.js` 一处 + 探针一处）：
+
+```js
+// 旧
+slots.inject('settings.plugin.item', function () {
+  return slots.register(
+    { name: 'settings.plugin.item', id: 'dsh-whale-pet-plugin', order: 40,
+      label: '鲸鱼娘桌宠', key: 'dsh-whale-pet' },
+    function () { return makeSettingsCardElement() }
+  )
+})
+
+// 新
+slots.inject('settings.plugins.tab', function () {
+  return slots.register(
+    { name: 'settings.plugins.tab', id: 'whale-pet', order: 40,
+      label: function () { return '鲸鱼娘桌宠' } },
+    function () { return makeSettingsCardElement() }
+  )
+})
+```
+
+三个要点：
+
+1. **`id` 用自有值 `'whale-pet'`** —— `'all'` 是官方只读清单占用的 id（`client-ui-settings-plugin-inventory`），复用会顶掉它
+2. **`label` 改成 thunk** —— 官方契约标注 `string | (() => string)`，thunk 每次投影重读，能跟随界面语言
+3. **组件函数不用动** —— 新槽位的 `register(at, component)` 第二个参数本来就是"组件工厂"，原写法合规
+
+**不需要改宿主**：`lib/index.js` 里向 `settingsScope` 认领 namespace 的那段在 0.1.7 仍有效
+（日志可见 `settings-bridge: claimed namespace dsh-whale-pet; describe sees it = true`），
+仅更正了一处过时注释。
+
+**验证修复在位**：
+
+```powershell
+Select-String -Path "$env:USERPROFILE\.dsh\profiles\web\node_modules\dsh-whale-pet-plugin\client\client.js" `
+  -Pattern "settings\.plugins\.tab"
+```
+
+客户端 bundle **不会热加载**，改完**必须重启 DSH**。
+重启后浏览器控制台应出现：
+
+```
+[whale-pet] settings card registered; slot entries = N, ours present = true
+```
+
+文件从 44,214 B 增至 **44,851 B**。
 
 ---
 
