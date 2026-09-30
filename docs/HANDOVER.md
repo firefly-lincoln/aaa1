@@ -2,7 +2,7 @@
 
 > **初版 2026-09-20 23:10,2026-09-22 修订**,替代并作废此前的同名文档(已归档到 `_archive\`)。
 > 本文档**完全自包含**,读者无需任何前置上下文,请**完整读完再动手**。
-> 本次修订:新增 5 个插件目录、`dsh-context-budget` 常驻版、DSH 0.1.7 升级注意事项、桌宠第 9~10 项修复、错误 7/8、代理与多 AI 协作提醒。
+> 本次修订:新增 5 个插件目录、`dsh-context-budget` 常驻版、DSH 0.1.7 升级注意事项、桌宠第 9~11 项修复（含新增「桌面宠大小」缩放）、错误 7/8/9、代理与多 AI 协作提醒。
 
 > ### 🔀 2026-09-25 更新：交接文档的分工
 >
@@ -294,6 +294,45 @@ new Function(source)   // 只做解析，不执行
 ```
 
 **教训**：验证工具必须匹配被测对象的形态。**报错先怀疑工具，再怀疑对象。**
+
+### 错误 9:PowerShell 里两处「看起来对、其实非法」的语法
+
+做桌面宠缩放（修复 11）时连踩两个 PowerShell 陷阱。**两个都是靠真解析器抓出来的**：
+
+**① `$script:` 后面不能跟函数调用**
+
+```powershell
+$script:S(20)    # 无效! Unexpected token '(' —— $script:S 被当成变量引用
+S(20)            # 正确:函数本就是脚本作用域,裸名即可见
+```
+
+我一开始把 `S(` 全写成 `$script:S(`，生成出来的脚本**一行都跑不了**。
+是 `[Parser]::ParseFile` 报了 12 处 `Unexpected token '('` 才发现的。
+
+**② 命令参数模式下,函数调用要加括号**
+
+```powershell
+New-Object System.Windows.Thickness(0, S(4), 0, 0)      # 错
+New-Object System.Windows.Thickness(0, (S(4)), 0, 0)    # 对
+```
+
+`New-Object` 的参数是**命令参数模式**，那里 `S(4)` 不会被当成函数调用。
+
+**教训（比上面两条更重要）**：改 PowerShell 生成的脚本，**改完必须用真解析器校验**，不能靠肉眼：
+
+```powershell
+$e=$null;$t=$null
+[void][System.Management.Automation.Language.Parser]::ParseFile($path,[ref]$t,[ref]$e)
+if ($e.Count) { $e | ForEach-Object { 'L' + $_.Extent.StartLineNumber + ': ' + $_.Message } }
+```
+
+现成脚本：`verify-petscript.mjs`（生成桌宠脚本 + 跑上述解析器 + 关键符号断言）。
+
+**另外两个坑（同一轮踩的）**：
+
+- **`MainWindowHandle` 对 `ShowInTaskbar=$false` 的窗口恒为 0** —— 找 WPF 桌宠窗口要
+  `EnumWindows` + `GetWindowThreadProcessId` **按 PID** 过滤，不能靠 `MainWindowHandle`。
+- **`SystemParameters.WorkArea` 在非交互会话里返回 0×0** —— 想据此做越界判断会永远"通过"。
 
 ---
 
