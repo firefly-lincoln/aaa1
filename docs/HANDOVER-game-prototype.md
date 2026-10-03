@@ -1,9 +1,24 @@
-# 交接说明 · 城市应急指挥游戏原型
+﻿# 交接说明 · 城市应急指挥游戏原型
+
+> ## 🔴 入口已变更（2026-09-25）
+>
+> **游戏相关的交接，请先读 `交接文档-给下一个会话.md`。**
+> 它包含当前的：设计定调、运行时事实、系统契约、踩过的坑（16 条）、
+> 验证命令、待办清单、以及与本用户的协作注意点。
+>
+> **本文档保留的价值只剩两节**：
+> - **§三「我犯过的错」** —— 93 轮开发期反复犯的 9 类错误（核心是「先插桩，别猜」），**仍然全部有效**
+> - **§四起的操作细节** —— 部分已过期，读到具体命令/文件名时**以 `交接文档-给下一个会话.md` 为准**
+>
+> 本文其余内容写于 **2026-09-22**（第一次大改之前）。那时的数字如今多半已变：
+> 地图 `218×184 → 251×184`、剧本 `40 起 → 117 条`、
+> 测试 `4 套 → 13 套`、类型未定 → 已定为《上报位置》、第一部已完整可玩。
+> 文中已就地修正【会导致找不到文件/跑错命令】的部分，其余历史值保留原样。
 
 > **写于 2026-09-22**，接续 93 轮开发。
 > ⚠️ **本文档与 `交接说明-给下一个AI.md` 是两份不同的东西**：
 > 那一份讲 **DSH 插件仓库**（桌宠 / 峰谷插件 / 事故史），
-> 这一份讲 **`prototype\` 里的游戏原型**。两份都要读，不要互相覆盖。
+> 这一份讲 **`prototype\` 里的游戏原型**。
 >
 > 本文档自包含。**如果你只读一节，读第三节「我犯过的错」。**
 
@@ -29,35 +44,48 @@
 
 ## 二、文件地图
 
+> ⚠️ **本节已于 2026-09-25 与工作区实际内容对齐。**
+> 原稿列出的一些文件已经不存在了（见下面的说明），照旧读会找不到东西。
+
 ```
 D:\新建文件夹\ai_text\prototype\
-  index.html          主原型（单文件，约 215 KB，含内联 CSS+JS+地图数据）
-  _genmap.mjs         地图生成器 → 写 _map.json
-  _zonedata.mjs       给每个分区补档案（人口/风险/建筑构成）→ 改写 _map.json
-  _check.mjs          注入地图数据 + 语法检查 + onclick/getElementById 校验
+  index.html          主原型（单文件，约 585 KB / 9003 行，含内联 CSS+JS+地图数据）
+  _genmap.mjs         地图生成器 → 写 _map.json（约 41 KB）
+                      ⚠ 分区人口/档案【已经并进这个脚本】，不再有单独的 _zonedata.mjs
+  _check.mjs          结构检查：块注释配平 / 补丁坏行 / 语法 / onclick / getElementById
+  _map.json           当前地图数据（251×184）
+  _map-v7-backup.json · _genmap-v7-backup.mjs   旧版备份（不要用）
+  _inline.js          脚本注入的中间产物（gitignore）
   _test-v3.mjs        25 项：派发流程 / 生命周期 / 紧迫度分级
   _test-v6.mjs        71 项：成败矩阵 / 升级 / 搜救 / 核实 / 统计
-  _test-v9.mjs        24 项：设施 / 巡逻 / 归队规则
-  _test-v11.mjs       16 项：路网抽取 / 寻路 / 派发契约
-  _map.json           当前地图数据（218×184）
+  _test-v9.mjs        32 项：设施 / 巡逻 / 归队规则
+  _test-v11..v20.mjs  见 §7「测试」—— 共 13 套 530 断言
 ```
 
 ```
 _shot\
-  shot.mjs            截图（CDP）。参数: 输出路径 宽 高 等待ms [URL]
+  shot.mjs / zoom.mjs / annot.mjs     截图（CDP）
+  bd-*.mjs     BD 组合机制的端到端验证与诊断（bd-verify / bd-replay / bd-realclick / bd-layout）
+  ui-*.mjs     UI 专项（字号、ETA、地图尺寸、出图）
+  accept.mjs / bugscan.mjs / static.mjs / density.mjs / fps.mjs / speedtest.mjs   验收与量测
+  patchjson.mjs  通用 JSON 补丁器（改剧本必须走它）
+  snapshot.mjs   改动前快照（配合 git tag）
+  usage-cost.mjs 查 token 成本结构
+  doc-audit.mjs  扫描全部 .md 里的过期数字（本文这类过期就是它发现的）
 ```
 
-### ⚠️ 生成地图的正确顺序（两步，缺一不可）
+### ⚠️ 生成地图的正确顺序（**一步**）
 
 ```powershell
 cd prototype
-node _genmap.mjs      # ① 生成地图
-node _zonedata.mjs    # ② 补分区档案  ← 忘了这步，区块档案面板会全是 0
-node _check.mjs       # ③ 注入到 index.html
+node _genmap.mjs      # 生成地图 + 分区档案（人口/风险/建筑构成）一次完成
+node _check.mjs       # 注入到 index.html 并做结构检查
 ```
 
-**`_zonedata.mjs` 是后加的独立步骤 —— 这是设计缺陷，忘了跑就出 bug。**
-（待办：把它并入 `_genmap.mjs`）
+> **原稿写的是两步**（`_genmap.mjs` → `_zonedata.mjs` → `_check.mjs`），
+> 并留了一条待办"把它并入 `_genmap.mjs`"。**那条待办已经做完了** ——
+> `_zonedata.mjs` 已被删除，人口模型现在在 `_genmap.mjs` 的第 576–710 行。
+> 如果你按旧文档跑，会因为找不到 `_zonedata.mjs` 而卡住。
 
 ---
 
