@@ -30,6 +30,23 @@ if (!Array.isArray(j)) {
 
 console.log('共取到 ' + j.length + ' 个 release')
 console.log('')
+
+// 落盘供后续解析（不依赖 shell 重定向，避免被 Select-Object 截断）
+const { writeFileSync } = await import('node:fs')
+const OUT = 'D:\\新建文件夹\\ai_text\\_dsh-releases.txt'
+const chunks = []
+for (const r of j) {
+  chunks.push('='.repeat(78))
+  chunks.push('TAG: ' + r.tag_name + ' | ' + (r.name || '') + ' | published: ' + (r.published_at || '').slice(0, 10) + ' | prerelease: ' + r.prerelease)
+  chunks.push('URL: ' + r.html_url)
+  chunks.push('-'.repeat(78))
+  chunks.push((r.body || '(no body)').trim())
+  chunks.push('')
+}
+writeFileSync(OUT, chunks.join('\n'), 'utf8')
+console.log('已写入 ' + OUT + ' (' + chunks.join('\n').length + ' 字符)')
+console.log('')
+
 for (const r of j) {
   const isTarget = /0\.1\.[67]/.test(r.tag_name) || /0\.2\.0/.test(r.tag_name)
   console.log('═'.repeat(78))

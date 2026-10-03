@@ -1,8 +1,10 @@
 ﻿# 交接说明 —— 致后续所有新对话的 AI
 
-> **初版 2026-09-20 23:10,2026-09-22 修订**,替代并作废此前的同名文档(已归档到 `_archive\`)。
+> **初版 2026-09-20 23:10,2026-09-22 首修,2026-10-04 再修**,替代并作废此前的同名文档(已归档到 `_archive\`)。
 > 本文档**完全自包含**,读者无需任何前置上下文,请**完整读完再动手**。
-> 本次修订:新增 5 个插件目录、`dsh-context-budget` 常驻版、DSH 0.1.7 升级注意事项、桌宠第 9~11 项修复（含新增「桌面宠大小」缩放）、错误 7/8/9、代理与多 AI 协作提醒。
+> 本次修订:DSH 已升至 **0.2.0-rc.2** —— 「二·补」重写为**累计破坏性变更表**（0.1.7 九条 + 0.2.0 一条）
+> 并加入 **0.2.1 三条破坏性变更预告**（含实测确认「不命中本项目」的证据）；
+> 另含 5 个插件目录、桌宠第 9~11 项修复、错误 7/8/9、代理与多 AI 协作提醒。
 
 > ### 🔀 2026-09-25 更新：交接文档的分工
 >
@@ -155,27 +157,74 @@ Copy-Item "$env:LOCALAPPDATA\npm-cache\_npx\<hash>\node_modules\@vscode\ripgrep-
 
 ## 二·补、DSH 版本升级注意事项
 
-**本机当前：`0.1.7-rc.2`**（2026-09-24 发布；此前是 `0.1.5-rc.2`）。
+**本机当前：`0.2.0-rc.2`**（2026-09-29 发布）。
+版本演进：`0.1.5-rc.2` → `0.1.7-rc.2` → **`0.2.0-rc.2`**。
+
 包内**没有** CHANGELOG 文件——要看变更得去 GitHub Release notes。
-抓取脚本：仓库 `docs/tools/fetch-dsh-changelog.mjs`（工作区副本 `_archive\tools\`）。
-它经代理取官方 release，并按版本切分、标出破坏性条目。
+抓取脚本：仓库 `docs/tools/fetch-dsh-changelog.mjs`（会**同时落盘**到 `_dsh-releases.txt`，供后续解析）。
+它经代理取官方 release 全文。
 
-npm 版本线（截至本更新）：`latest = 0.1.7-rc.2` · `next = 0.2.0-rc.1` · `alpha = 0.1.7-alpha.2`
+npm 版本线（截至 2026-10-04）：`latest = 0.2.0-rc.2` · `next = 0.2.0-rc.2` · `alpha = 0.2.1-alpha.1`
 
-### ⚠️ 影响本项目的破坏性变更（全部来自 0.1.7-rc.1）
+### ⚠️ 破坏性变更 × 本项目适配现状（累计）
 
-| 变更 | 对本项目的影响 | 现状 |
+| 版本 | 变更 | 本项目状态 |
 |---|---|---|
-| **创造模式移除 `cordis_define` / `cordis_run`**，改为通过 Plugin Manager 安装持久化插件 | **动态 Cordis 插件在新版彻底装不了** | `dsh-context-budget` 已迁移为常驻包 `dsh-context-budget-plugin` |
-| `agent/session-start` → **异步串行的 `agent/created`** | 注册旧事件名的插件会失效 | ✅ 全部插件无旧名引用 |
-| 工作区文件读取统一为 **`readBytes`** | 用旧接口的插件需迁移 | ✅ 无引用 |
-| 弃用 `snapshotEvents` / `eventAt` / `ownEvents` | 同步历史读取接口不可用 | ✅ 无引用 |
-| `spill-policy` 的 `maxInlineBytes` → **`maxInlineTokens`** | 自定义配置需改键名 | ✅ 无引用 |
-| PTC 包名统一为 **`ptc-runtime`** 系列，旧名不再兼容 | 自定义配置需更新 | ✅ 无引用 |
-| **Session 日志升级为 V4** | 自定义日志读取器需适配 | ⚠️ **见下** |
-| **配置热更新取消事务回滚** | 插件激活失败可能**部分生效** | ⚠️ **风险变大，见下** |
+| 0.1.7-rc.1 | **创造模式移除 `cordis_define` / `cordis_run`**，动态插件改走 Plugin Manager | ✅ `dsh-context-budget` 已迁为常驻包 |
+| 0.1.7-rc.1 | `agent/session-start` → **`agent/created`**（异步串行） | ✅ 无旧名引用 |
+| 0.1.7-rc.1 | 工作区文件读取统一为 **`readBytes`** | ✅ 无引用 |
+| 0.1.7-rc.1 | 弃用 `snapshotEvents` / `eventAt` / `ownEvents` | ✅ 无引用 |
+| 0.1.7-rc.1 | `spill-policy` 的 `maxInlineBytes` → **`maxInlineTokens`** | ✅ 无引用 |
+| 0.1.7-rc.1 | PTC 包名统一为 **`ptc-runtime`** 系列 | ✅ 无引用 |
+| 0.1.7-rc.1 | **Session 日志升级为 V4**（文件名仍为 `.v3.jsonl.zstd`） | ⚠️ 见下 |
+| 0.1.7-rc.1 | **配置热更新取消事务回滚**（激活失败可能部分生效） | ⚠️ 见下 |
+| 0.2.0-rc.2 | **第三方模型目录升级至 pi-ai 0.87.1，部分旧模型 ID 被移除** | ⚠️ 见下 |
 
-两条需要特别注意的：
+### 🔴 0.2.1-alpha.1 预告：三条破坏性变更（**尚未正式发布**）
+
+| 变更 | 是否命中本项目 |
+|---|---|
+| **输入区统计扩展拆为 `activity` 和 `usage`**；覆盖旧 `stats` 整行的插件需更新注册 ID | ✅ **不命中** —— 见下 |
+| **移除运行时 invariant 插件**及各包的 `./invariant` 导出 | ✅ 本项目未依赖 |
+| **子路径插件不再读取独立 `package.json`**，显示文本与图标须经子路径导出 | ✅ 本项目未用子路径插件 |
+
+**关于第一条，我实测确认过（0.2.0-rc.2 环境）**：
+
+```
+0.2.0 契约表共 93 个槽位
+✅ 三个插件用的 6 个槽位全部存在：
+     conversation.session.header.utilities   peak-valley / context-budget
+     conversation.composer.dock              peak-valley
+     shell.overlay                           context-budget
+     tool.view.cordis                        context-budget
+     settings.plugins.tab                    whale-pet
+❌ 0.2.0 里已无任何含 "stats" 的槽位
+```
+
+**峰谷插件注册的是 `conversation.composer.dock`（id `peak-valley-price`）**，
+不是 `stats` 整行——**所以 0.2.1 那条不会命中它**。
+
+> 排查方法（以后升级可复用）：槽位契约表在
+> `@deepseek-ai/dsh-cordis-client-runner/lib/client.js`，搜 `key: "` 就能列出**当前版本的全部合法槽位**，
+> 与插件实际注册的槽位对照即可。
+
+### 0.2.0 系列其他相关变更（非破坏性）
+
+**0.2.0-rc.2**
+- **桌面端可在菜单栏管理和安装 `dsh` 命令、管理插件，无需另装 Node 或 pnpm**
+- 实验性**异步问答模式**（需手动开启）：等待超时后 Agent 继续独立工作，用户稍后回答
+- 自动化任务投递的提醒改为**明确标注的用户定时消息**
+- 修复**持久 PowerShell 在完成状态后带空格时无法识别命令结束**、丢失退出码
+- 模型选择器支持**搜索**；精简插件安装引导，区分已安装/不兼容/内置插件
+
+**0.2.0-rc.1**
+- **创造模式完善插件开发指引**，并提供体验技能
+- **Windows 内置沙箱新增权限诊断技能**（定位访问被拒原因，并在限定目录内做带备份、可恢复的权限修复）
+- 使用 DeepSeek 账号模型的会话**无需额外 API Key 即可网页搜索**
+- 修复**工具调度异常后对话无法继续**；结果未知的操作会提示先核实副作用，不盲目重试
+- 自动化任务改由**可选插件包**提供
+
+### ⚠️ 三条需要特别注意的
 
 **① Session 已是 V4，但文件名仍是 `.v3.jsonl.zstd`**
 
@@ -184,25 +233,28 @@ npm 版本线（截至本更新）：`latest = 0.1.7-rc.2` · `next = 0.2.0-rc.1
 内容:   {"type":"session","version":4, ...}
 ```
 
-**本文档「读会话日志的正确方法」那套脚本仍然可用**（逐帧 zstd 解压照旧，实测读到 3000+ 条记录）。
-文件名保留 `.v3.` 是兼容考虑——**不要以为还是 V3**。
+「读会话日志的正确方法」那套脚本**仍然可用**（逐帧 zstd 解压照旧）。**别以为还是 V3。**
 
 **② 热加载的风险变大了**
 
-> 0.1.7：**配置热更新取消事务回滚**——解析失败保留原配置，**插件激活失败可能部分生效**。
+0.1.7 起**配置热更新取消事务回滚**：解析失败保留原配置，但**插件激活失败可能部分生效**。
+配合 profile 的 `"patchReload": "live"`，意味着改 `cordis.patch.yml` 出错的后果比以前严重
+（以前整体回滚，现在可能半生效）。**改这个文件前先备份。**
 
-配合你 profile 的 `"patchReload": "live"`，意味着**改 `cordis.patch.yml` 出错的后果比以前更严重**
-（以前会整体回滚，现在可能半生效）。**webguard 那次事故的土壤仍在** —— 改这个文件前先备份。
+**③ 模型 ID 可能失效（0.2.0-rc.2）**
 
-### 对本项目的其他相关变更（非破坏性）
+升级说明明确写着「部分旧模型 ID 被移除，已保存的选择可能需要重新选择」。
+本机 profile 里配的是：
 
-- 插件管理页支持**安装 / 配置 / 启停 / 运行时卸载**；安装可选官方源 / 国内镜像 / 自定义源
-- **插件安装与启动会检查与 DSH 版本的兼容性**，不兼容会说明原因，并可对确切版本授予例外
-- 插件可声明**无需重载的配置字段** —— 只改这些字段会保留运行中的插件实例
-- 插件组合包支持**按顺序加载多个 patch 文件**（原单文件写法仍可用）
-- 新增 **`--dump-config-schema`**：导出配置与 patch 的 JSON Schema，辅助配置编写与静态检查
-- **设置改由 profile 的插件配置保存**；旧 `settings.yaml` 仅尝试导入一次
-  （本机该文件已不存在，说明迁移已完成）
+```yaml
+- id: agent-default-model
+  config:
+    provider: deepseek-official
+    model: deepseek-flash
+    reasoningEffort: max
+```
+
+**若发现模型调用报错或行为异常，先检查这里。**
 
 ---
 
@@ -496,18 +548,20 @@ D:\新建文件夹\ai_text\_archive\
 
 ---
 
-## 五、当前状态(2026-09-23 更新)
+## 五、当前状态(2026-10-04 更新)
 
 ```
-DSH 版本   : 0.1.7-rc.2   ← 已从 0.1.5-rc.2 升级
+DSH 版本   : 0.2.0-rc.2   ← 已从 0.1.7-rc.2 升级
 DSH 进程   : 以 Get-NetTCPConnection -LocalPort 3080 为准
 本会话     : session-dfedd899-150b-43f0-9aae-b514a135daa8（已被分叉出 d3774e32）
 仓库       : 见 git log, 5 个插件目录（含常驻版 dsh-context-budget-plugin）
 工作区     : 约 16 MB + prototype\（另一段对话的原型游戏）与 _shot\
 在线插件   : 以 ~\.dsh\profiles\web\cordis.patch.yml 为准,别靠记忆
              实测已挂载: restart / peak-valley / whale-pet / context-budget
+             （升级 0.2.0 后已复验：5 个插件全部加载正常）
 代理       : 127.0.0.1:7897 经常是关的，推送前先确认
 会话日志   : 已是 V4 内容，但文件名仍为 session.v3.jsonl.zstd
+桌宠缩放   : desktopPetScale（0.5~1.6），改 whale-settings.json 后约 2 秒生效
 ```
 
 ### 桌宠 11 项修复(全部已生效并真机验证)
